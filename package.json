@@ -1,0 +1,42 @@
+{
+  "name": "surpryze",
+  "version": "0.1.0",
+  "description": "Epistemic testing layer for Playwright — turn surprise into knowledge",
+  "type": "module",
+  "bin": {
+    "surpryze": "./dist/cli/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "surpryze": "node dist/cli/index.js",
+    "test": "npm run build && playwright test",
+    "demo:app": "node examples/password-reset-app/server.js",
+    "demo:learn": "npm run build && node dist/cli/index.js learn --root examples/password-reset-suite",
+    "demo:full": "npm run build && node dist/cli/index.js init --root examples/password-reset-suite && node dist/cli/index.js learn --root examples/password-reset-suite && node dist/cli/index.js explore --root examples/password-reset-suite --budget 5 && node dist/cli/index.js report --root examples/password-reset-suite"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "playwright",
+    "testing",
+    "epistemic",
+    "qa"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@typescript-eslint/parser": "^8.18.0",
+    "@typescript-eslint/typescript-estree": "^8.18.0",
+    "better-sqlite3": "^11.7.0",
+    "commander": "^12.1.0",
+    "glob": "^11.0.0",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.1",
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/node": "^22.10.2",
+    "typescript": "^5.7.2"
+  }
+}

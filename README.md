@@ -2,7 +2,19 @@
 
 **Turn surprise into knowledge.**
 
-Surpryze reads your existing Playwright tests and builds an **Assumption Graph**: what your suite believes, what evidence supports each belief, and which assumptions are weakest.
+Surpryze reads your existing Playwright tests and builds an **Assumption Graph**: what your suite **actually asserts**, what evidence supports each claim, and which claims are weakest.
+
+### What this is (and isn’t)
+
+Surpryze performs **structural extraction from test code**—it is not proof of production behavior. The graph’s `agentBrief.fidelityNote` (and `surpryze graph` output) states this explicitly.
+
+| Claim type | Meaning |
+|------------|---------|
+| **Intent** (`[Intent] Test scenario: …`) | Title-only; weak signal (low confidence). Describes what the test is *about*, not a verified outcome. |
+| **Structural** | Matcher type without a static value (e.g. `toBeVisible()`). Useful topology, not a full oracle. |
+| **Literal** | Expected values parsed from source (e.g. `toHaveText('Done')`). More specific, but still only what the *test* encodes—not a guarantee the app is correct elsewhere. |
+
+**Best use today:** see what your suite asserts, where evidence is thin, and feed agents a machine-readable map (`assumption-graph.json`). Optional `explore` challenges gaps; it does not replace human judgment.
 
 ---
 

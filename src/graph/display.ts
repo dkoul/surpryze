@@ -21,8 +21,13 @@ export function formatGraphReport(graph: AssumptionGraph): string {
     if (!view) continue;
     const a = view.assumption;
     lines.push('');
-    lines.push(`${a.id} [${a.evidenceClass}] confidence=${a.confidence} status=${a.status}`);
+    lines.push(
+      `${a.id} [${a.evidenceClass}] precision=${a.claimPrecision} confidence=${a.confidence} status=${a.status}`,
+    );
     lines.push(`  Statement: ${a.statement}`);
+    if (a.expectedLiterals.length > 0) {
+      lines.push(`  Expected values: ${a.expectedLiterals.join(', ')}`);
+    }
     lines.push(`  Source:    ${a.source}`);
     if (view.supportedByTests.length > 0) {
       lines.push(`  Tests:     ${view.supportedByTests.join(', ')}`);
@@ -49,6 +54,8 @@ export function formatGraphReport(graph: AssumptionGraph): string {
     }
   }
 
+  lines.push('');
+  lines.push(`Note: ${graph.agentBrief.fidelityNote}`);
   lines.push('');
   lines.push(`Full graph JSON: assumption-graph.json (${graph.generatedAt})`);
   return lines.join('\n');

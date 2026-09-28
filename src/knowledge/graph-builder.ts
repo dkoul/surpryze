@@ -35,7 +35,7 @@ function attachSurpriseContradictions(store: KnowledgeStore): void {
     store.upsertAssumption({
       ...assumption,
       confidence,
-      evidenceClass: classifyEvidence(allEvidence, contradictions.length > 0),
+      evidenceClass: classifyEvidence(allEvidence, contradictions.length > 0, assumption.claimPrecision),
       status: 'CONTRADICTED',
       updatedAt: new Date().toISOString(),
     });
@@ -112,8 +112,8 @@ export function assembleGraphView(store: KnowledgeStore, tests: ParsedTest[]): A
   const weakAssumptionsFirst = [...assumptionViews]
     .sort(
       (a, b) =>
-        rankWeakness(a.assumption.evidenceClass, a.assumption.confidence) -
-        rankWeakness(b.assumption.evidenceClass, b.assumption.confidence),
+        rankWeakness(a.assumption.evidenceClass, a.assumption.confidence, a.assumption.claimPrecision) -
+        rankWeakness(b.assumption.evidenceClass, b.assumption.confidence, b.assumption.claimPrecision),
     )
     .map((v) => v.assumption.id);
 
@@ -138,7 +138,9 @@ export function assembleGraphView(store: KnowledgeStore, tests: ParsedTest[]): A
       label: a.statement,
       meta: {
         evidenceClass: a.evidenceClass,
+        claimPrecision: a.claimPrecision,
         confidence: a.confidence,
+        expectedLiterals: a.expectedLiterals,
         status: a.status,
       },
     })),
@@ -162,13 +164,17 @@ export function assembleGraphView(store: KnowledgeStore, tests: ParsedTest[]): A
     assumptions: assumptionViews,
     weakAssumptionsFirst,
     agentBrief: {
-      whatTestsBelieve: `The suite encodes ${assumptions.length} behavioral assumptions across ${tests.length} tests.`,
-      whyTheyBelieveIt: `Beliefs are backed by ${allEvidence.filter((e) => e.evidenceKind === 'direct').length} direct and ${allEvidence.filter((e) => e.evidenceKind === 'indirect').length} indirect evidence links parsed from test titles, actions, and assertions.`,
+      whatTestsBelieve: `The suite encodes ${assumptions.length} claims across ${tests.length} tests (${assumptions.filter((a) => a.claimPrecision === 'literal').length} with literal expected values).`,
+      whyTheyBelieveIt: `Claims are parsed from test structure (AST). ${allEvidence.filter((e) => e.evidenceKind === 'direct').length} direct evidence links tie tests/assertions to claims.`,
+      fidelityNote:
+        'Structural extraction only: claimPrecision=literal means expected values were read from source; structural means matcher type without a static value; intent means title-only scenario text. confidence reflects evidence weight, not production correctness. Do not treat STRONG as a behavioral guarantee without literal oracles.',
       weakestAssumptions: weakest.map((w) => ({
         id: w.assumption.id,
         statement: w.assumption.statement,
         evidenceClass: w.assumption.evidenceClass,
+        claimPrecision: w.assumption.claimPrecision,
         confidence: w.assumption.confidence,
+        expectedLiterals: w.assumption.expectedLiterals,
         supportingEvidence: w.evidence
           .filter((e) => e.polarity === 'supports' && e.evidenceKind !== 'missing')
           .map((e) => `${e.evidenceKind}:${e.refKind}:${e.refId}${e.refLabel ? ` (${e.refLabel})` : ''}`),

@@ -71,8 +71,8 @@ export class KnowledgeStore {
   upsertAssumption(a: Assumption): void {
     this.db
       .prepare(
-        `INSERT INTO assumptions (id, statement, feature, source, confidence, status, provenance_json, created_at, updated_at, evidence_class, missing_scenarios_json, statement_hash)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `INSERT INTO assumptions (id, statement, feature, source, confidence, status, provenance_json, created_at, updated_at, evidence_class, missing_scenarios_json, statement_hash, claim_precision, expected_literals_json)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(id) DO UPDATE SET
            statement = excluded.statement,
            feature = excluded.feature,
@@ -83,7 +83,9 @@ export class KnowledgeStore {
            updated_at = excluded.updated_at,
            evidence_class = excluded.evidence_class,
            missing_scenarios_json = excluded.missing_scenarios_json,
-           statement_hash = excluded.statement_hash`,
+           statement_hash = excluded.statement_hash,
+           claim_precision = excluded.claim_precision,
+           expected_literals_json = excluded.expected_literals_json`,
       )
       .run(
         a.id,
@@ -98,6 +100,8 @@ export class KnowledgeStore {
         a.evidenceClass,
         JSON.stringify(a.missingScenarios ?? []),
         a.statementHash ?? null,
+        a.claimPrecision,
+        JSON.stringify(a.expectedLiterals ?? []),
       );
   }
 
@@ -314,6 +318,10 @@ function rowToAssumption(row: Record<string, unknown>): Assumption {
     source: row.source as Assumption['source'],
     confidence: row.confidence as number,
     evidenceClass: (row.evidence_class as Assumption['evidenceClass']) ?? 'UNKNOWN',
+    claimPrecision: (row.claim_precision as Assumption['claimPrecision']) ?? 'structural',
+    expectedLiterals: row.expected_literals_json
+      ? JSON.parse(row.expected_literals_json as string)
+      : [],
     status: row.status as Assumption['status'],
     provenance: JSON.parse(row.provenance_json as string),
     missingScenarios: row.missing_scenarios_json

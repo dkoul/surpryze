@@ -48,4 +48,10 @@ export function migrateDatabase(db: Database.Database): void {
   if (!columnExists(db, 'assumptions', 'statement_hash')) {
     db.exec(`ALTER TABLE assumptions ADD COLUMN statement_hash TEXT`);
   }
+  if (!columnExists(db, 'assumptions', 'claim_precision')) {
+    db.exec(`ALTER TABLE assumptions ADD COLUMN claim_precision TEXT NOT NULL DEFAULT 'structural'`);
+  }
+  if (!columnExists(db, 'assumptions', 'expected_literals_json')) {
+    db.exec(`ALTER TABLE assumptions ADD COLUMN expected_literals_json TEXT NOT NULL DEFAULT '[]'`);
+  }
 }

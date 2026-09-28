@@ -5,6 +5,7 @@ import type { TSESTree } from '@typescript-eslint/typescript-estree';
 import type { ParsedTest } from '../knowledge/schemas.js';
 import { createHash } from 'node:crypto';
 import { formatExpectChain, isExpectMatcherCall } from './expect-chain.js';
+import { parseExpectAssertion } from './expect-literals.js';
 
 function hashId(parts: string[]): string {
   return 'T-' + createHash('sha256').update(parts.join('|')).digest('hex').slice(0, 8);
@@ -16,18 +17,28 @@ function collectCalls(
   assertions: string[],
   routes: string[],
   apiCalls: string[],
-  assertionDetails: { id: string; expression: string; line?: number }[],
+  assertionDetails: NonNullable<ParsedTest['assertionDetails']>,
   testId: string,
   assertionIndex: { n: number },
 ): void {
   if (node.type === 'CallExpression') {
     if (isExpectMatcherCall(node) && isExpectMatcherInvocation(node)) {
-      const expr = formatExpectChain(node);
+      const oracle = parseExpectAssertion(node);
+      const expr = oracle.expression;
       if (!assertions.includes(expr)) {
         assertions.push(expr);
         const line = node.loc?.start.line;
         const aid = `AS-${testId}-${assertionIndex.n++}`;
-        assertionDetails.push({ id: aid, expression: expr, line });
+        assertionDetails.push({
+          id: aid,
+          expression: expr,
+          line,
+          matcher: oracle.matcher,
+          negated: oracle.negated,
+          subjectHint: oracle.subjectHint ?? undefined,
+          expectedLiterals: oracle.expectedLiterals,
+          hasDynamicExpected: oracle.hasDynamicExpected,
+        });
       }
     }
 
@@ -132,7 +143,7 @@ export function parsePlaywrightFile(filePath: string, projectRoot: string): Pars
         if ((fn === 'test' || fn === 'it') && (body?.type === 'ArrowFunctionExpression' || body?.type === 'FunctionExpression')) {
           const actions: string[] = [];
           const assertions: string[] = [];
-          const assertionDetails: { id: string; expression: string; line?: number }[] = [];
+          const assertionDetails: NonNullable<ParsedTest['assertionDetails']> = [];
           const routes: string[] = [];
           const apiCalls: string[] = [];
           const fullTitle = [...describePath, title].join(' > ');

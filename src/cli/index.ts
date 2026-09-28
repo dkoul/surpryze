@@ -65,6 +65,7 @@ program
             testingGaps: graph.testingGaps,
             whatToTestNext: graph.agentBrief.whatToTestNext,
             fidelityNote: graph.agentBrief.fidelityNote,
+            coverageDisclaimer: graph.coverageDisclaimer,
           },
           null,
           2,

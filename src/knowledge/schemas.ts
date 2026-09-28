@@ -139,6 +139,10 @@ export const TestGapRecommendationSchema = z.object({
     'contradiction',
     'weak_oracles',
     'no_assertions',
+    'intent_only_oracle',
+    'structural_only_oracle',
+    'negative_path',
+    'analysis_limit',
   ]),
 });
 
@@ -176,6 +180,7 @@ export const AssumptionGraphSchema = z.object({
   }),
   assumptionsSummary: AssumptionsSummarySchema,
   testingGaps: z.array(TestGapRecommendationSchema),
+  coverageDisclaimer: z.string(),
   nodes: z.array(
     z.object({
       id: z.string(),

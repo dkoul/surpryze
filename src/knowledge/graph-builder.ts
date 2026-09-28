@@ -10,6 +10,7 @@ import type { AssumptionEvidence } from './schemas.js';
 import {
   analyzeTestingGaps,
   buildAssumptionsSummary,
+  COVERAGE_DISCLAIMER,
 } from '../gaps/analyzer.js';
 
 function attachSurpriseContradictions(store: KnowledgeStore): void {
@@ -77,6 +78,7 @@ export function buildAndPersistAssumptionGraph(
         assumptionsSummary: graph.assumptionsSummary,
         testingGaps: graph.testingGaps,
         whatToTestNext: graph.agentBrief.whatToTestNext,
+        coverageDisclaimer: graph.coverageDisclaimer,
       },
       null,
       2,
@@ -188,6 +190,7 @@ export function assembleGraphView(store: KnowledgeStore, tests: ParsedTest[]): A
     },
     assumptionsSummary,
     testingGaps,
+    coverageDisclaimer: COVERAGE_DISCLAIMER,
     nodes,
     edges,
     assumptions: assumptionViews,

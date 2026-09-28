@@ -4,6 +4,7 @@ import { parse } from '@typescript-eslint/typescript-estree';
 import type { TSESTree } from '@typescript-eslint/typescript-estree';
 import type { ParsedTest } from '../knowledge/schemas.js';
 import { createHash } from 'node:crypto';
+import { formatExpectChain, isExpectMatcherCall } from './expect-chain.js';
 
 function hashId(parts: string[]): string {
   return 'T-' + createHash('sha256').update(parts.join('|')).digest('hex').slice(0, 8);
@@ -20,6 +21,16 @@ function collectCalls(
   assertionIndex: { n: number },
 ): void {
   if (node.type === 'CallExpression') {
+    if (isExpectMatcherCall(node) && isExpectMatcherInvocation(node)) {
+      const expr = formatExpectChain(node);
+      if (!assertions.includes(expr)) {
+        assertions.push(expr);
+        const line = node.loc?.start.line;
+        const aid = `AS-${testId}-${assertionIndex.n++}`;
+        assertionDetails.push({ id: aid, expression: expr, line });
+      }
+    }
+
     const callee = node.callee;
     let name = '';
     if (callee.type === 'Identifier') name = callee.name;
@@ -28,20 +39,17 @@ function collectCalls(
       if (callee.object.type === 'Identifier') {
         const obj = callee.object.name;
         if (['page', 'context', 'request'].includes(obj)) {
-          if (['goto', 'click', 'fill', 'press', 'check', 'uncheck', 'selectOption'].includes(name)) {
+          if (['goto', 'click', 'fill', 'press', 'check', 'uncheck', 'selectOption', 'dblclick', 'hover'].includes(name)) {
             actions.push(`${obj}.${name}`);
           }
           if (name === 'goto' && node.arguments[0]?.type === 'Literal') {
             routes.push(String((node.arguments[0] as TSESTree.Literal).value));
           }
         }
-        if (obj === 'expect') {
-          const expr = extractExpect(node);
-          assertions.push(expr);
-          const line = node.loc?.start.line;
-          const aid = `AS-${testId}-${assertionIndex.n++}`;
-          assertionDetails.push({ id: aid, expression: expr, line });
-        }
+      }
+      if (callee.object.type === 'MemberExpression' || callee.object.type === 'CallExpression') {
+        const actionName = extractPageAction(node);
+        if (actionName) actions.push(actionName);
       }
     }
     if (name === 'fetch' || (callee.type === 'MemberExpression' && name === 'post')) {
@@ -63,27 +71,22 @@ function collectCalls(
   }
 }
 
-function extractExpect(call: TSESTree.CallExpression): string {
-  const parts: string[] = ['expect'];
-  if (call.arguments.length > 0) {
-    const arg = call.arguments[0];
-    if (arg.type === 'MemberExpression' && arg.property.type === 'Identifier') {
-      parts.push(arg.property.name);
-    }
+/** Matcher call (not bare `expect(subject)`). */
+function isExpectMatcherInvocation(node: TSESTree.CallExpression): boolean {
+  return node.callee.type === 'MemberExpression';
+}
+
+function extractPageAction(node: TSESTree.CallExpression): string | null {
+  const chain: string[] = [];
+  let cur: TSESTree.Node = node.callee;
+  while (cur.type === 'MemberExpression') {
+    if (cur.property.type === 'Identifier') chain.unshift(cur.property.name);
+    cur = cur.object;
   }
-  let cur: TSESTree.Node = call;
-  while (cur.type === 'CallExpression') {
-    if (cur.callee.type === 'MemberExpression' && cur.callee.property.type === 'Identifier') {
-      parts.push(cur.callee.property.name);
-    }
-    if (
-      cur.callee.type === 'MemberExpression' &&
-      cur.callee.object.type === 'CallExpression'
-    ) {
-      cur = cur.callee.object;
-    } else break;
+  if (cur.type === 'Identifier' && ['page', 'request', 'context'].includes(cur.name)) {
+    return `${cur.name}.${chain.join('.')}`;
   }
-  return parts.join('.');
+  return null;
 }
 
 function inferFeature(filePath: string, describePath: string[]): string | undefined {

@@ -6,6 +6,7 @@ import type {
   ParsedTest,
 } from '../knowledge/schemas.js';
 import { classifyEvidence, deriveConfidenceFromEvidence } from './confidence.js';
+import { assertionToBelief, titleToBelief } from './beliefs.js';
 
 export interface MinedAssumptionBundle {
   assumption: Assumption;
@@ -84,6 +85,17 @@ const CONFLICTING_STATEMENT_PAIRS: [string, string][] = [
 
 function titleToCandidates(test: ParsedTest): Candidate[] {
   const out: Candidate[] = [];
+
+  // Every test is an oracle about its title (baseline assumption).
+  out.push({
+    statement: titleToBelief(test),
+    feature: test.feature,
+    source: 'test',
+    testId: test.id,
+    evidenceKind: 'direct',
+    linkKind: 'implicit',
+  });
+
   const tl = test.title.toLowerCase();
 
   const rules: Array<{ match: RegExp | ((t: string) => boolean); statement: string }> = [
@@ -137,25 +149,6 @@ function titleToCandidates(test: ParsedTest): Candidate[] {
   }
 
   return out;
-}
-
-function assertionToBelief(expr: string, test: ParsedTest): string {
-  if (expr.includes('toBeGreaterThanOrEqual') && test.title.toLowerCase().includes('deleted')) {
-    return 'Deleted accounts cannot request password reset';
-  }
-  if (expr.includes('toBe(400)') || expr.includes('toBeGreaterThanOrEqual(400)')) {
-    return 'Invalid or rejected operations return HTTP 4xx';
-  }
-  if (expr.includes('.ok()')) {
-    if (test.title.toLowerCase().includes('reset-request') || test.apiCalls.length > 0) {
-      return 'Password reset request succeeds for eligible users';
-    }
-    return `Operation succeeds: ${test.title}`;
-  }
-  if (expr.includes('toContainText')) {
-    return `UI displays expected content (${expr})`;
-  }
-  return `Assertion holds: ${expr}`;
 }
 
 export function mineAssumptionGraph(tests: ParsedTest[]): MineResult {
@@ -244,9 +237,11 @@ export function mineAssumptionGraph(tests: ParsedTest[]): MineResult {
 
     const confidence = deriveConfidenceFromEvidence(evidence);
     const evidenceClass = classifyEvidence(evidence, contradictions.length > 0);
-    const hasDirectTest = evidence.some((e) => e.evidenceKind === 'direct' && e.refKind === 'test');
+    const hasDirectEvidence = evidence.some(
+      (e) => e.polarity === 'supports' && e.evidenceKind === 'direct',
+    );
     const status =
-      evidenceClass === 'UNTESTED' ? 'UNTESTED' : hasDirectTest ? 'TESTED' : 'UNTESTED';
+      evidenceClass === 'UNTESTED' ? 'UNTESTED' : hasDirectEvidence ? 'TESTED' : 'UNTESTED';
 
     const gapMeta = GAP_ASSUMPTIONS.find((g) => g.statement === statement);
 

@@ -27,7 +27,8 @@ node dist/cli/index.js status --root examples/password-reset-suite
 | Command | Description |
 |---------|-------------|
 | `surpryze init` | Detect Playwright project, create `.surpryze/` |
-| `surpryze learn` | Parse tests, extract assumptions (heuristic LLM provider in MVP) |
+| `surpryze learn` | Build the **Assumption Graph** (primary artifact) → `.surpryze/assumption-graph.json` |
+| `surpryze graph` | Show weakest assumptions first; `--json` for agent consumption |
 | `surpryze explore --budget 20` | Plan & run experiments via Playwright |
 | `surpryze investigate SURPRISE-xxx` | Show evidence; optional `--classify` / `--decision` |
 | `surpryze report` | Write `report.html` and `report.json` |

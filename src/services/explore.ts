@@ -13,7 +13,7 @@ export async function runExplorePipeline(
   baseUrl?: string,
 ): Promise<void> {
   const db = openDatabase(config.surpryzeDir);
-  const store = new KnowledgeStore(db);
+  const store = new KnowledgeStore(db, config.surpryzeDir);
 
   const { experiments, observationFile } = await runExplore(config, store, budget, baseUrl);
   const batch = loadObservationBatch(observationFile);

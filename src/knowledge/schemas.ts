@@ -27,6 +27,22 @@ export const AssumptionStatusSchema = z.enum([
   'CONTRADICTED',
 ]);
 
+/** Evidence strength classification for assumptions with insufficient support. */
+export const EvidenceClassSchema = z.enum(['STRONG', 'WEAK', 'UNTESTED', 'UNKNOWN']);
+
+export const EvidenceKindSchema = z.enum(['direct', 'indirect', 'inferred', 'missing']);
+
+export const EvidencePolaritySchema = z.enum(['supports', 'contradicts']);
+
+export const GraphRelationSchema = z.enum([
+  'supports',
+  'contradicts',
+  'derived_from',
+  'evidence_for',
+  'child_of',
+  'related_to',
+]);
+
 export const ExplorationStrategySchema = z.enum([
   'boundary',
   'sequence',
@@ -42,6 +58,12 @@ export const ProvenanceRefSchema = z.object({
   label: z.string().optional(),
 });
 
+export const ParsedAssertionSchema = z.object({
+  id: z.string(),
+  expression: z.string(),
+  line: z.number().optional(),
+});
+
 export const ParsedTestSchema = z.object({
   id: z.string(),
   filePath: z.string(),
@@ -50,21 +72,91 @@ export const ParsedTestSchema = z.object({
   describePath: z.array(z.string()),
   actions: z.array(z.string()),
   assertions: z.array(z.string()),
+  assertionDetails: z.array(ParsedAssertionSchema).optional(),
   routes: z.array(z.string()),
   apiCalls: z.array(z.string()),
   rawSnippet: z.string().optional(),
 });
 
+export const AssumptionEvidenceSchema = z.object({
+  id: z.string(),
+  assumptionId: z.string(),
+  refKind: z.enum(['test', 'assertion', 'requirement', 'code', 'assumption']),
+  refId: z.string(),
+  refLabel: z.string().optional(),
+  evidenceKind: EvidenceKindSchema,
+  polarity: EvidencePolaritySchema,
+  weight: z.number(),
+});
+
+export const GraphEdgeSchema = z.object({
+  id: z.string(),
+  fromKind: z.enum(['test', 'assertion', 'assumption', 'requirement', 'evidence']),
+  fromId: z.string(),
+  toKind: z.enum(['test', 'assertion', 'assumption', 'requirement', 'evidence']),
+  toId: z.string(),
+  relation: GraphRelationSchema,
+  evidenceKind: EvidenceKindSchema.optional(),
+  metadata: z.record(z.unknown()).optional(),
+});
+
 export const AssumptionSchema = z.object({
   id: z.string(),
   statement: z.string(),
+  statementHash: z.string().optional(),
   feature: z.string().optional(),
   source: AssumptionSourceSchema,
   confidence: z.number().min(0).max(1),
+  evidenceClass: EvidenceClassSchema,
   status: AssumptionStatusSchema,
   provenance: z.array(ProvenanceRefSchema),
+  missingScenarios: z.array(z.string()).default([]),
   createdAt: z.string(),
   updatedAt: z.string(),
+});
+
+export const AssumptionGraphSchema = z.object({
+  version: z.literal(1),
+  generatedAt: z.string(),
+  projectSummary: z.object({
+    testsAnalyzed: z.number(),
+    assumptions: z.number(),
+    edges: z.number(),
+  }),
+  nodes: z.array(
+    z.object({
+      id: z.string(),
+      type: z.enum(['assumption', 'test', 'assertion']),
+      label: z.string(),
+      meta: z.record(z.unknown()).optional(),
+    }),
+  ),
+  edges: z.array(GraphEdgeSchema),
+  assumptions: z.array(
+    z.object({
+      assumption: AssumptionSchema,
+      evidence: z.array(AssumptionEvidenceSchema),
+      contradictions: z.array(AssumptionEvidenceSchema),
+      supportedByTests: z.array(z.string()),
+      missingEvidence: z.array(z.string()),
+      plausibleUntestedScenarios: z.array(z.string()),
+    }),
+  ),
+  weakAssumptionsFirst: z.array(z.string()),
+  agentBrief: z.object({
+    whatTestsBelieve: z.string(),
+    whyTheyBelieveIt: z.string(),
+    weakestAssumptions: z.array(
+      z.object({
+        id: z.string(),
+        statement: z.string(),
+        evidenceClass: EvidenceClassSchema,
+        confidence: z.number(),
+        supportingEvidence: z.array(z.string()),
+        gaps: z.array(z.string()),
+      }),
+    ),
+  }),
 });
 
 export const ExperimentSchema = z.object({
@@ -125,6 +217,11 @@ export const SurpryzeConfigSchema = z.object({
 
 export type ResultState = z.infer<typeof ResultStateSchema>;
 export type Assumption = z.infer<typeof AssumptionSchema>;
+export type AssumptionEvidence = z.infer<typeof AssumptionEvidenceSchema>;
+export type GraphEdge = z.infer<typeof GraphEdgeSchema>;
+export type AssumptionGraph = z.infer<typeof AssumptionGraphSchema>;
+export type EvidenceClass = z.infer<typeof EvidenceClassSchema>;
+export type EvidenceKind = z.infer<typeof EvidenceKindSchema>;
 export type Experiment = z.infer<typeof ExperimentSchema>;
 export type Observation = z.infer<typeof ObservationSchema>;
 export type Surprise = z.infer<typeof SurpriseSchema>;

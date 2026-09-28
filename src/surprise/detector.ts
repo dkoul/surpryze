@@ -53,6 +53,7 @@ export function detectSurprises(
           store.upsertAssumption({
             ...a,
             status: 'CONTRADICTED',
+            evidenceClass: 'WEAK',
             updatedAt: now,
           });
         }

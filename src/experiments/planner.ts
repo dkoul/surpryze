@@ -10,7 +10,13 @@ export interface PlannedExperiment extends Experiment {
 }
 
 export function planExperiments(assumptions: Assumption[], budget: number): PlannedExperiment[] {
-  const weak = assumptions.filter((a) => a.status === 'UNTESTED' || a.status === 'TESTED');
+  const weak = assumptions.filter(
+    (a) =>
+      a.evidenceClass === 'UNTESTED' ||
+      a.evidenceClass === 'WEAK' ||
+      a.evidenceClass === 'UNKNOWN' ||
+      a.status === 'UNTESTED',
+  );
   const planned: PlannedExperiment[] = [];
   const now = new Date().toISOString();
 

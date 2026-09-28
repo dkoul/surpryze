@@ -12,6 +12,7 @@ import {
   buildAssumptionsSummary,
   COVERAGE_DISCLAIMER,
 } from '../gaps/analyzer.js';
+import { buildSfdotCoverage } from '../gaps/sfdot.js';
 
 function attachSurpriseContradictions(store: KnowledgeStore): void {
   for (const surprise of store.listSurprises()) {
@@ -79,6 +80,7 @@ export function buildAndPersistAssumptionGraph(
         testingGaps: graph.testingGaps,
         whatToTestNext: graph.agentBrief.whatToTestNext,
         coverageDisclaimer: graph.coverageDisclaimer,
+        sfdotCoverage: graph.sfdotCoverage,
       },
       null,
       2,
@@ -174,6 +176,7 @@ export function assembleGraphView(store: KnowledgeStore, tests: ParsedTest[]): A
 
   const assumptionsSummary = buildAssumptionsSummary(tests, assumptions);
   const testingGaps = analyzeTestingGaps(tests, assumptionViews);
+  const sfdotCoverage = buildSfdotCoverage(tests);
   const whatToTestNext = testingGaps
     .filter((g) => g.priority === 'high')
     .slice(0, 8)
@@ -191,6 +194,7 @@ export function assembleGraphView(store: KnowledgeStore, tests: ParsedTest[]): A
     assumptionsSummary,
     testingGaps,
     coverageDisclaimer: COVERAGE_DISCLAIMER,
+    sfdotCoverage,
     nodes,
     edges,
     assumptions: assumptionViews,

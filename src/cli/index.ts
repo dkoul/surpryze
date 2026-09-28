@@ -66,6 +66,7 @@ program
             whatToTestNext: graph.agentBrief.whatToTestNext,
             fidelityNote: graph.agentBrief.fidelityNote,
             coverageDisclaimer: graph.coverageDisclaimer,
+            sfdotCoverage: graph.sfdotCoverage,
           },
           null,
           2,

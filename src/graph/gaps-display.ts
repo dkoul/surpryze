@@ -30,6 +30,21 @@ export function formatGapsReport(graph: AssumptionGraph): string {
   }
 
   lines.push('');
+  lines.push('## SFDOT coverage (heuristic lenses on the suite)');
+  lines.push('');
+  for (const d of graph.sfdotCoverage.dimensions) {
+    lines.push(
+      `  ${d.label.padEnd(12)} ${d.strength.padEnd(8)} ${d.testsWithSignal}/${d.testsTotal} tests — ${d.description.slice(0, 72)}…`,
+    );
+  }
+  if (graph.sfdotCoverage.thinDimensions.length > 0) {
+    lines.push('');
+    lines.push(
+      `  Thin dimensions: ${graph.sfdotCoverage.thinDimensions.join(', ')} (see SFDOT gaps below)`,
+    );
+  }
+
+  lines.push('');
   lines.push(`## Where you should write tests (${graph.testingGaps.length} findings)`);
   lines.push('');
 

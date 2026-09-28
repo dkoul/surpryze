@@ -143,7 +143,26 @@ export const TestGapRecommendationSchema = z.object({
     'structural_only_oracle',
     'negative_path',
     'analysis_limit',
+    'sfdot_lens',
   ]),
+  sfdotDimension: z
+    .enum(['structure', 'function', 'data', 'platform', 'operations', 'time'])
+    .optional(),
+});
+
+export const SfdotDimensionCoverageSchema = z.object({
+  dimension: z.enum(['structure', 'function', 'data', 'platform', 'operations', 'time']),
+  label: z.string(),
+  description: z.string(),
+  testsWithSignal: z.number(),
+  testsTotal: z.number(),
+  strength: z.enum(['strong', 'moderate', 'weak', 'absent']),
+  signals: z.array(z.string()),
+});
+
+export const SfdotCoverageReportSchema = z.object({
+  dimensions: z.array(SfdotDimensionCoverageSchema),
+  thinDimensions: z.array(z.enum(['structure', 'function', 'data', 'platform', 'operations', 'time'])),
 });
 
 export const AssumptionsSummarySchema = z.object({
@@ -181,6 +200,7 @@ export const AssumptionGraphSchema = z.object({
   assumptionsSummary: AssumptionsSummarySchema,
   testingGaps: z.array(TestGapRecommendationSchema),
   coverageDisclaimer: z.string(),
+  sfdotCoverage: SfdotCoverageReportSchema,
   nodes: z.array(
     z.object({
       id: z.string(),

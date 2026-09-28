@@ -1,6 +1,13 @@
 import { createHash } from 'node:crypto';
 import type { Assumption, AssumptionGraph, ParsedTest } from '../knowledge/schemas.js';
 import { rankWeakness } from '../assumptions/confidence.js';
+import {
+  buildSfdotCoverage,
+  SFDOT_LABELS,
+  sfdotGapSuggestions,
+  sfdotGapId,
+  type SfdotDimension,
+} from './sfdot.js';
 
 export type GapCategory =
   | 'untested_assumption'
@@ -11,7 +18,8 @@ export type GapCategory =
   | 'intent_only_oracle'
   | 'structural_only_oracle'
   | 'negative_path'
-  | 'analysis_limit';
+  | 'analysis_limit'
+  | 'sfdot_lens';
 
 export const COVERAGE_DISCLAIMER =
   'Zero or few reported gaps does NOT mean the suite has complete coverage. Surpryze only compares patterns visible in test source (titles, actions, expect()). Unmodeled requirements, production behavior, and edge cases may still be untested.';
@@ -27,6 +35,8 @@ export interface TestGapRecommendation {
   relatedTestIds: string[];
   suggestedTestIdeas: string[];
   category: GapCategory;
+  /** SFDOT lens when gap is dimension-oriented (structure, function, data, platform, operations, time). */
+  sfdotDimension?: SfdotDimension;
 }
 
 export interface AssumptionsSummary {
@@ -303,6 +313,23 @@ export function analyzeTestingGaps(
         category: 'no_assertions',
       });
     }
+  }
+
+  const assumptions = graphAssumptions.map((v) => v.assumption);
+  const sfdotReport = buildSfdotCoverage(tests);
+  for (const dim of sfdotReport.dimensions) {
+    if (dim.strength === 'strong') continue;
+    const priority = dim.strength === 'absent' ? 'medium' : 'low';
+    recs.push({
+      id: sfdotGapId(['sfdot', dim.dimension]),
+      priority,
+      reason: `SFDOT — ${dim.label}: ${dim.strength === 'absent' ? 'no clear signals' : 'weak signals'} in suite (${dim.testsWithSignal}/${dim.testsTotal} tests). ${SFDOT_LABELS[dim.dimension].description}`,
+      relatedAssumptionIds: assumptions.slice(0, 3).map((a) => a.id),
+      relatedTestIds: tests.slice(0, 5).map((t) => t.id),
+      suggestedTestIdeas: sfdotGapSuggestions(dim.dimension),
+      category: 'sfdot_lens',
+      sfdotDimension: dim.dimension,
+    });
   }
 
   const priorityOrder = { high: 0, medium: 1, low: 2 };

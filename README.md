@@ -8,12 +8,15 @@ Surpryze is a **layer on top of Playwright**—your tests and runner stay the sa
 2. **Where should you write more tests?** (untested beliefs, weak oracles, contradictions, missing assertions)
 
 ```bash
-npx surpryze learn   # parse suite → graph + gaps
-npx surpryze gaps    # human summary: assumptions + test recommendations
-npx surpryze gaps --json
+npx surpryze learn          # 1 — build graph (deterministic)
+npx surpryze graph          # 2 — review assumptions + heuristic gaps + SFDOT
+npx surpryze graph --json   # 2 — full graph for agents
+# 3 — gap analyst skill (see skills/surpryze-gap-analyst/SKILL.md)
 ```
 
-Artifacts: `.surpryze/assumption-graph.json`, `.surpryze/testing-gaps.json`
+Artifacts: `.surpryze/assumption-graph.json`, `.surpryze/agent-handoff.json`, `.surpryze/testing-gaps.json`
+
+**Agents:** read `docs/AGENT-WORKFLOW.md`. After `graph --json`, run the **surpryze-gap-analyst** skill to suggest data variation, flows, and tests—grounded in graph IDs, not as production proof.
 
 ---
 

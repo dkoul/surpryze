@@ -13,6 +13,7 @@ import {
   COVERAGE_DISCLAIMER,
 } from '../gaps/analyzer.js';
 import { buildSfdotCoverage } from '../gaps/sfdot.js';
+import { writeAgentHandoff } from '../agent/handoff.js';
 
 function attachSurpriseContradictions(store: KnowledgeStore): void {
   for (const surprise of store.listSurprises()) {
@@ -51,6 +52,7 @@ function attachSurpriseContradictions(store: KnowledgeStore): void {
 export function buildAndPersistAssumptionGraph(
   store: KnowledgeStore,
   tests: ParsedTest[],
+  projectRoot?: string,
 ): AssumptionGraph {
   const mined = mineAssumptionGraph(tests);
   store.clearGraphArtifacts();
@@ -89,6 +91,11 @@ export function buildAndPersistAssumptionGraph(
   store.setMeta('testingGapsPath', gapsPath);
   store.setMeta('assumptionGraphPath', jsonPath);
   store.setMeta('assumptionGraphAt', graph.generatedAt);
+
+  const root = projectRoot ?? path.dirname(path.dirname(store.surpryzeDir));
+  const handoffPath = writeAgentHandoff(store.surpryzeDir, root, graph);
+  store.setMeta('agentHandoffPath', handoffPath);
+
   return graph;
 }
 

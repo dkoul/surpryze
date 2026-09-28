@@ -1,0 +1,204 @@
+import { createHash } from 'node:crypto';
+import type { Assumption, AssumptionGraph, ParsedTest } from '../knowledge/schemas.js';
+import { rankWeakness } from '../assumptions/confidence.js';
+
+export type GapCategory =
+  | 'untested_assumption'
+  | 'missing_evidence'
+  | 'contradiction'
+  | 'weak_oracles'
+  | 'no_assertions';
+
+export interface TestGapRecommendation {
+  id: string;
+  priority: 'high' | 'medium' | 'low';
+  feature?: string;
+  reason: string;
+  relatedAssumptionIds: string[];
+  relatedTestIds: string[];
+  suggestedTestIdeas: string[];
+  category: GapCategory;
+}
+
+export interface AssumptionsSummary {
+  totalClaims: number;
+  literalClaims: number;
+  structuralClaims: number;
+  intentClaims: number;
+  byFeature: Record<
+    string,
+    { tests: number; assumptions: number; literalAssumptions: number }
+  >;
+  /** Distinct beliefs the suite encodes (prioritize literal + structural). */
+  highlightedAssumptions: Array<{
+    id: string;
+    statement: string;
+    feature?: string;
+    claimPrecision: Assumption['claimPrecision'];
+    evidenceClass: Assumption['evidenceClass'];
+  }>;
+}
+
+function gapId(parts: string[]): string {
+  return 'GAP-' + createHash('sha256').update(parts.join('|')).digest('hex').slice(0, 8);
+}
+
+export function buildAssumptionsSummary(
+  tests: ParsedTest[],
+  assumptions: Assumption[],
+): AssumptionsSummary {
+  const byFeature: AssumptionsSummary['byFeature'] = {};
+
+  for (const t of tests) {
+    const f = t.feature ?? 'general';
+    byFeature[f] ??= { tests: 0, assumptions: 0, literalAssumptions: 0 };
+    byFeature[f].tests += 1;
+  }
+
+  for (const a of assumptions) {
+    const f = a.feature ?? 'general';
+    byFeature[f] ??= { tests: 0, assumptions: 0, literalAssumptions: 0 };
+    byFeature[f].assumptions += 1;
+    if (a.claimPrecision === 'literal') byFeature[f].literalAssumptions += 1;
+  }
+
+  const highlighted = assumptions
+    .filter((a) => a.claimPrecision !== 'intent' || a.evidenceClass === 'UNTESTED')
+    .sort(
+      (a, b) =>
+        rankWeakness(a.evidenceClass, a.confidence, a.claimPrecision) -
+        rankWeakness(b.evidenceClass, b.confidence, b.claimPrecision),
+    )
+    .slice(0, 25)
+    .map((a) => ({
+      id: a.id,
+      statement: a.statement,
+      feature: a.feature,
+      claimPrecision: a.claimPrecision,
+      evidenceClass: a.evidenceClass,
+    }));
+
+  return {
+    totalClaims: assumptions.length,
+    literalClaims: assumptions.filter((a) => a.claimPrecision === 'literal').length,
+    structuralClaims: assumptions.filter((a) => a.claimPrecision === 'structural').length,
+    intentClaims: assumptions.filter((a) => a.claimPrecision === 'intent').length,
+    byFeature,
+    highlightedAssumptions: highlighted,
+  };
+}
+
+export function analyzeTestingGaps(
+  tests: ParsedTest[],
+  graphAssumptions: AssumptionGraph['assumptions'],
+): TestGapRecommendation[] {
+  const recs: TestGapRecommendation[] = [];
+
+  for (const view of graphAssumptions) {
+    const a = view.assumption;
+    if (a.status === 'UNTESTED' || a.evidenceClass === 'UNTESTED') {
+      recs.push({
+        id: gapId(['untested', a.id]),
+        priority: 'high',
+        feature: a.feature,
+        reason: `Belief is not exercised by any test: ${a.statement}`,
+        relatedAssumptionIds: [a.id],
+        relatedTestIds: view.supportedByTests,
+        suggestedTestIdeas:
+          view.plausibleUntestedScenarios.length > 0
+            ? view.plausibleUntestedScenarios.map((s) => `Scenario: ${s}`)
+            : [`Add a test that confirms or refutes: ${a.statement}`],
+        category: 'untested_assumption',
+      });
+    }
+
+    if (view.missingEvidence.length > 0 && a.evidenceClass !== 'UNTESTED') {
+      recs.push({
+        id: gapId(['missing', a.id]),
+        priority: 'medium',
+        feature: a.feature,
+        reason: `Thin evidence for: ${a.statement}`,
+        relatedAssumptionIds: [a.id],
+        relatedTestIds: view.supportedByTests,
+        suggestedTestIdeas: [
+          ...view.plausibleUntestedScenarios,
+          'Strengthen with explicit expect() on outcomes, not only scenario title',
+        ],
+        category: 'missing_evidence',
+      });
+    }
+
+    if (view.contradictions.length > 0) {
+      recs.push({
+        id: gapId(['contradiction', a.id]),
+        priority: 'high',
+        feature: a.feature,
+        reason: `Tests encode conflicting expectations around: ${a.statement}`,
+        relatedAssumptionIds: [a.id, ...view.contradictions.map((c) => c.refId)],
+        relatedTestIds: view.supportedByTests,
+        suggestedTestIdeas: [
+          'Add a single authoritative test or align tests on one expected behavior',
+          'Document which assumption is correct if both are intentional',
+        ],
+        category: 'contradiction',
+      });
+    }
+  }
+
+  const byFeature = new Map<string, ParsedTest[]>();
+  for (const t of tests) {
+    const f = t.feature ?? 'general';
+    const list = byFeature.get(f) ?? [];
+    list.push(t);
+    byFeature.set(f, list);
+  }
+
+  for (const [feature, featureTests] of byFeature) {
+    const related = graphAssumptions.filter((v) => (v.assumption.feature ?? 'general') === feature);
+    const literal = related.filter((v) => v.assumption.claimPrecision === 'literal').length;
+    if (featureTests.length >= 2 && literal === 0) {
+      recs.push({
+        id: gapId(['weak-oracles', feature]),
+        priority: 'medium',
+        feature: feature === 'general' ? undefined : feature,
+        reason: `Area "${feature}" has ${featureTests.length} tests but no literal expected values in assertions`,
+        relatedAssumptionIds: related.map((v) => v.assumption.id).slice(0, 5),
+        relatedTestIds: featureTests.map((t) => t.id),
+        suggestedTestIdeas: [
+          'Add toHaveText / status code / URL assertions with concrete expected values',
+          'Replace title-only coverage with explicit oracles',
+        ],
+        category: 'weak_oracles',
+      });
+    }
+  }
+
+  for (const t of tests) {
+    if (t.actions.length > 0 && t.assertions.length === 0) {
+      recs.push({
+        id: gapId(['no-assert', t.id]),
+        priority: 'high',
+        feature: t.feature,
+        reason: `Test performs actions but has no expect() assertions: ${t.title}`,
+        relatedAssumptionIds: [],
+        relatedTestIds: [t.id],
+        suggestedTestIdeas: [
+          'Add expect() matchers for the outcome of this flow',
+          `File: ${t.filePath}`,
+        ],
+        category: 'no_assertions',
+      });
+    }
+  }
+
+  const priorityOrder = { high: 0, medium: 1, low: 2 };
+  const seen = new Set<string>();
+  return recs
+    .sort((a, b) => priorityOrder[a.priority] - priorityOrder[b.priority])
+    .filter((r) => {
+      const key = `${r.category}:${r.reason}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+}

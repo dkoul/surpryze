@@ -5,6 +5,7 @@ import { parseAllTestFiles } from '../parser/playwright-tests.js';
 import { buildAndPersistAssumptionGraph } from '../knowledge/graph-builder.js';
 import type { SurpryzeConfig } from '../knowledge/schemas.js';
 import { formatGraphReport } from '../graph/display.js';
+import { formatGapsReport } from '../graph/gaps-display.js';
 
 export async function runLearn(config: SurpryzeConfig): Promise<void> {
   const info = detectPlaywrightProject(config.projectRoot);
@@ -34,5 +35,8 @@ export async function runLearn(config: SurpryzeConfig): Promise<void> {
   }
   console.log(`Wrote ${config.surpryzeDir}/assumption-graph.json`);
   console.log('');
+  console.log(formatGapsReport(graph));
+  console.log('');
+  console.log('— Detailed assumption graph —');
   console.log(formatGraphReport(graph));
 }

@@ -125,6 +125,46 @@ export const AssumptionSchema = z.object({
   updatedAt: z.string(),
 });
 
+export const TestGapRecommendationSchema = z.object({
+  id: z.string(),
+  priority: z.enum(['high', 'medium', 'low']),
+  feature: z.string().optional(),
+  reason: z.string(),
+  relatedAssumptionIds: z.array(z.string()),
+  relatedTestIds: z.array(z.string()),
+  suggestedTestIdeas: z.array(z.string()),
+  category: z.enum([
+    'untested_assumption',
+    'missing_evidence',
+    'contradiction',
+    'weak_oracles',
+    'no_assertions',
+  ]),
+});
+
+export const AssumptionsSummarySchema = z.object({
+  totalClaims: z.number(),
+  literalClaims: z.number(),
+  structuralClaims: z.number(),
+  intentClaims: z.number(),
+  byFeature: z.record(
+    z.object({
+      tests: z.number(),
+      assumptions: z.number(),
+      literalAssumptions: z.number(),
+    }),
+  ),
+  highlightedAssumptions: z.array(
+    z.object({
+      id: z.string(),
+      statement: z.string(),
+      feature: z.string().optional(),
+      claimPrecision: ClaimPrecisionSchema,
+      evidenceClass: EvidenceClassSchema,
+    }),
+  ),
+});
+
 export const AssumptionGraphSchema = z.object({
   version: z.literal(1),
   generatedAt: z.string(),
@@ -132,7 +172,10 @@ export const AssumptionGraphSchema = z.object({
     testsAnalyzed: z.number(),
     assumptions: z.number(),
     edges: z.number(),
+    testingGaps: z.number(),
   }),
+  assumptionsSummary: AssumptionsSummarySchema,
+  testingGaps: z.array(TestGapRecommendationSchema),
   nodes: z.array(
     z.object({
       id: z.string(),
@@ -157,6 +200,7 @@ export const AssumptionGraphSchema = z.object({
     whatTestsBelieve: z.string(),
     whyTheyBelieveIt: z.string(),
     fidelityNote: z.string(),
+    whatToTestNext: z.array(z.string()),
     weakestAssumptions: z.array(
       z.object({
         id: z.string(),
@@ -233,6 +277,8 @@ export type Assumption = z.infer<typeof AssumptionSchema>;
 export type AssumptionEvidence = z.infer<typeof AssumptionEvidenceSchema>;
 export type GraphEdge = z.infer<typeof GraphEdgeSchema>;
 export type AssumptionGraph = z.infer<typeof AssumptionGraphSchema>;
+export type TestGapRecommendation = z.infer<typeof TestGapRecommendationSchema>;
+export type AssumptionsSummary = z.infer<typeof AssumptionsSummarySchema>;
 export type EvidenceClass = z.infer<typeof EvidenceClassSchema>;
 export type ClaimPrecision = z.infer<typeof ClaimPrecisionSchema>;
 export type EvidenceKind = z.infer<typeof EvidenceKindSchema>;

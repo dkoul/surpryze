@@ -7,6 +7,10 @@ import { createHash } from 'node:crypto';
 import { mineAssumptionGraph } from '../assumptions/mine.js';
 import { classifyEvidence, deriveConfidenceFromEvidence, rankWeakness } from '../assumptions/confidence.js';
 import type { AssumptionEvidence } from './schemas.js';
+import {
+  analyzeTestingGaps,
+  buildAssumptionsSummary,
+} from '../gaps/analyzer.js';
 
 function attachSurpriseContradictions(store: KnowledgeStore): void {
   for (const surprise of store.listSurprises()) {
@@ -64,6 +68,21 @@ export function buildAndPersistAssumptionGraph(
   const graph = assembleGraphView(store, tests);
   const jsonPath = path.join(store.surpryzeDir, 'assumption-graph.json');
   fs.writeFileSync(jsonPath, JSON.stringify(graph, null, 2));
+  const gapsPath = path.join(store.surpryzeDir, 'testing-gaps.json');
+  fs.writeFileSync(
+    gapsPath,
+    JSON.stringify(
+      {
+        generatedAt: graph.generatedAt,
+        assumptionsSummary: graph.assumptionsSummary,
+        testingGaps: graph.testingGaps,
+        whatToTestNext: graph.agentBrief.whatToTestNext,
+      },
+      null,
+      2,
+    ),
+  );
+  store.setMeta('testingGapsPath', gapsPath);
   store.setMeta('assumptionGraphPath', jsonPath);
   store.setMeta('assumptionGraphAt', graph.generatedAt);
   return graph;
@@ -151,6 +170,13 @@ export function assembleGraphView(store: KnowledgeStore, tests: ParsedTest[]): A
     .map((id) => assumptionViews.find((v) => v.assumption.id === id)!)
     .filter(Boolean);
 
+  const assumptionsSummary = buildAssumptionsSummary(tests, assumptions);
+  const testingGaps = analyzeTestingGaps(tests, assumptionViews);
+  const whatToTestNext = testingGaps
+    .filter((g) => g.priority === 'high')
+    .slice(0, 8)
+    .map((g) => g.suggestedTestIdeas[0] ?? g.reason);
+
   const graph: AssumptionGraph = {
     version: 1,
     generatedAt: new Date().toISOString(),
@@ -158,7 +184,10 @@ export function assembleGraphView(store: KnowledgeStore, tests: ParsedTest[]): A
       testsAnalyzed: tests.length,
       assumptions: assumptions.length,
       edges: edges.length,
+      testingGaps: testingGaps.length,
     },
+    assumptionsSummary,
+    testingGaps,
     nodes,
     edges,
     assumptions: assumptionViews,
@@ -168,6 +197,7 @@ export function assembleGraphView(store: KnowledgeStore, tests: ParsedTest[]): A
       whyTheyBelieveIt: `Claims are parsed from test structure (AST). ${allEvidence.filter((e) => e.evidenceKind === 'direct').length} direct evidence links tie tests/assertions to claims.`,
       fidelityNote:
         'Structural extraction only: claimPrecision=literal means expected values were read from source; structural means matcher type without a static value; intent means title-only scenario text. confidence reflects evidence weight, not production correctness. Do not treat STRONG as a behavioral guarantee without literal oracles.',
+      whatToTestNext,
       weakestAssumptions: weakest.map((w) => ({
         id: w.assumption.id,
         statement: w.assumption.statement,

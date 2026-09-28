@@ -2,51 +2,166 @@
 
 **Turn surprise into knowledge.**
 
-Surpryze is an epistemic testing layer for Playwright. It learns from your existing suite, models assumptions, runs bounded experiments, and treats **surprises** (observations that conflict with your knowledge model) as first-class signals.
+Surpryze reads your existing Playwright tests and builds an **Assumption Graph**: what your suite believes, what evidence supports each belief, and which assumptions are weakest.
 
-## Quick start (demo)
+---
+
+## You already have Playwright at the repo root
+
+If your project looks like this, you are in the right place:
+
+```text
+my-app/
+├── playwright.config.ts    # or .js / .mjs
+├── package.json
+├── tests/                  # or e2e/, specs at root, etc.
+│   └── *.spec.ts
+└── …
+```
+
+### What to do now
+
+**1. Install Surpryze in that repo** (as a dev dependency):
+
+```bash
+cd my-app
+npm install github:dkoul/surpryze --save-dev
+```
+
+The package builds on install (`prepare` runs `tsc`). You need Node **18+**.
+
+**2. Ignore Surpryze artifacts** (add to `.gitignore` if not already there):
+
+```gitignore
+.surpryze/
+```
+
+**3. From the same directory** (`my-app`, where `playwright.config.*` lives), run:
+
+```bash
+npx surpryze init
+npx surpryze learn
+npx surpryze graph
+```
+
+You do **not** need `--root` when your shell is already at the project root. Every command defaults to the current directory (`.`).
+
+**4. Use the output**
+
+| Artifact | Path |
+|----------|------|
+| Assumption Graph (agents) | `.surpryze/assumption-graph.json` |
+| Knowledge DB | `.surpryze/knowledge.db` |
+| Human-readable graph | `npx surpryze graph` |
+| JSON to stdout | `npx surpryze graph --json` |
+
+**5. Re-run after you change tests**
+
+```bash
+npx surpryze learn
+npx surpryze graph
+```
+
+**6. Optional — exploration** (only when your app is running and reachable):
+
+```bash
+npx surpryze explore --budget 10 --base-url http://localhost:3000
+npx surpryze report
+npx surpryze status
+```
+
+Use the same `baseURL` you use in Playwright (or pass `--base-url`).
+
+### Optional npm scripts in `my-app`
+
+```json
+{
+  "scripts": {
+    "beliefs": "surpryze learn && surpryze graph",
+    "beliefs:json": "surpryze graph --json"
+  }
+}
+```
+
+Then: `npm run beliefs`
+
+---
+
+## What each command does (from your repo root)
+
+| Command | When |
+|---------|------|
+| `npx surpryze init` | Once per repo — detects Playwright, creates `.surpryze/` |
+| `npx surpryze learn` | After test changes — rebuilds the Assumption Graph |
+| `npx surpryze graph` | Review weakest assumptions and gaps |
+| `npx surpryze graph --json` | Export for Cursor / Codex / Claude Code |
+| `npx surpryze explore --budget <n>` | Run bounded experiments (app must be up) |
+| `npx surpryze investigate SURPRISE-…` | Inspect and classify a surprise |
+| `npx surpryze report` | HTML + JSON summary under `.surpryze/` |
+| `npx surpryze status` | Quick counts and epistemic coverage |
+
+To point at another directory: add `--root /path/to/project` (only needed when you are **not** cd’d into the Playwright project).
+
+---
+
+## Working on the Surpryze tool itself
+
+Clone this repository, then:
 
 ```bash
 npm install
 npx playwright install chromium
 npm run build
-
-# Terminal 1 — demo app
-npm run demo:app
-
-# Terminal 2 — epistemic loop
-node dist/cli/index.js init --root examples/password-reset-suite
-node dist/cli/index.js learn --root examples/password-reset-suite
-node dist/cli/index.js explore --root examples/password-reset-suite --budget 5
-node dist/cli/index.js report --root examples/password-reset-suite
-node dist/cli/index.js status --root examples/password-reset-suite
+npm run surpryze -- <command> [options]
 ```
 
-## CLI
+---
 
-| Command | Description |
-|---------|-------------|
-| `surpryze init` | Detect Playwright project, create `.surpryze/` |
-| `surpryze learn` | Build the **Assumption Graph** (primary artifact) → `.surpryze/assumption-graph.json` |
-| `surpryze graph` | Show weakest assumptions first; `--json` for agent consumption |
-| `surpryze explore --budget 20` | Plan & run experiments via Playwright |
-| `surpryze investigate SURPRISE-xxx` | Show evidence; optional `--classify` / `--decision` |
-| `surpryze report` | Write `report.html` and `report.json` |
-| `surpryze status` | Summary metrics |
+## Try the built-in demo
 
-## Architecture
+Demo app + sample suite live under `examples/`. From **this** repo:
 
-- **Parser** — TypeScript ESTree mining of Playwright tests
-- **Knowledge store** — SQLite (`better-sqlite3`) with provenance
-- **Experiments** — Generated Playwright specs under `.surpryze/experiments/`
-- **Surprise detector** — Deterministic rules first (MVP)
-- **Reporting** — HTML + JSON epistemic metrics
+```bash
+npm run demo:app   # terminal 1 — http://127.0.0.1:3456
+```
 
-## MVP principles
+```bash
+npm run build
+export ROOT=examples/password-reset-suite
+npm run surpryze -- init  --root "$ROOT"
+npm run surpryze -- learn --root "$ROOT"
+npm run surpryze -- graph --root "$ROOT"
+```
 
-- Does not replace Playwright or your regression suite
-- Bounded, reproducible exploration with experiment budgets
-- Humans classify surprises; AI does not silently become the oracle
+Optional full loop (app running): `npm run demo:full`
+
+---
+
+## Troubleshooting
+
+| Problem | Fix |
+|---------|-----|
+| `Surpryze not initialized` | Run `npx surpryze init` from the Playwright project root |
+| `learn` reports 0 tests | Run commands from the directory that contains `playwright.config.*`; check that `*.spec.ts` / `*.test.ts` exist |
+| `surpryze: command not found` | Use `npx surpryze` or add a `scripts` entry in `package.json` |
+| Install from GitHub fails to build | Use Node 18+; run `cd node_modules/surpryze && npm run build` once |
+| `explore` does nothing useful | Start your app; set `--base-url` to match Playwright `baseURL` |
+
+---
+
+## How it fits together
+
+```text
+Your Playwright tests (unchanged)
+        ↓ learn
+Assumption Graph  →  graph / graph --json
+        ↓ explore (optional)
+Experiments → surprises → investigate → report
+```
+
+Surpryze does **not** replace Playwright or rewrite your tests. Exploration is **bounded** (`--budget`). Humans decide what surprises mean.
+
+---
 
 ## License
 

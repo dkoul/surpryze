@@ -6,7 +6,9 @@ export function findWeakAssumptions(assumptions: Assumption[]): Assumption[] {
   return [...assumptions]
     .filter((a) => ['WEAK', 'UNTESTED', 'UNKNOWN'].includes(a.evidenceClass))
     .sort(
-      (a, b) => rankWeakness(a.evidenceClass, a.confidence) - rankWeakness(b.evidenceClass, b.confidence),
+      (a, b) =>
+        rankWeakness(a.evidenceClass, a.confidence, a.claimPrecision) -
+        rankWeakness(b.evidenceClass, b.confidence, b.claimPrecision),
     );
 }
 

@@ -54,6 +54,8 @@ export function detectSurprises(
             ...a,
             status: 'CONTRADICTED',
             evidenceClass: 'WEAK',
+            claimPrecision: a.claimPrecision,
+            expectedLiterals: a.expectedLiterals,
             updatedAt: now,
           });
         }

@@ -30,6 +30,9 @@ export const AssumptionStatusSchema = z.enum([
 /** Evidence strength classification for assumptions with insufficient support. */
 export const EvidenceClassSchema = z.enum(['STRONG', 'WEAK', 'UNTESTED', 'UNKNOWN']);
 
+/** How precisely the claim states an expected outcome (vs. structural/intent-only). */
+export const ClaimPrecisionSchema = z.enum(['literal', 'structural', 'intent']);
+
 export const EvidenceKindSchema = z.enum(['direct', 'indirect', 'inferred', 'missing']);
 
 export const EvidencePolaritySchema = z.enum(['supports', 'contradicts']);
@@ -62,6 +65,11 @@ export const ParsedAssertionSchema = z.object({
   id: z.string(),
   expression: z.string(),
   line: z.number().optional(),
+  matcher: z.string().optional(),
+  negated: z.boolean().optional(),
+  subjectHint: z.string().optional(),
+  expectedLiterals: z.array(z.string()).optional(),
+  hasDynamicExpected: z.boolean().optional(),
 });
 
 export const ParsedTestSchema = z.object({
@@ -108,6 +116,8 @@ export const AssumptionSchema = z.object({
   source: AssumptionSourceSchema,
   confidence: z.number().min(0).max(1),
   evidenceClass: EvidenceClassSchema,
+  claimPrecision: ClaimPrecisionSchema,
+  expectedLiterals: z.array(z.string()).default([]),
   status: AssumptionStatusSchema,
   provenance: z.array(ProvenanceRefSchema),
   missingScenarios: z.array(z.string()).default([]),
@@ -146,12 +156,15 @@ export const AssumptionGraphSchema = z.object({
   agentBrief: z.object({
     whatTestsBelieve: z.string(),
     whyTheyBelieveIt: z.string(),
+    fidelityNote: z.string(),
     weakestAssumptions: z.array(
       z.object({
         id: z.string(),
         statement: z.string(),
         evidenceClass: EvidenceClassSchema,
+        claimPrecision: ClaimPrecisionSchema,
         confidence: z.number(),
+        expectedLiterals: z.array(z.string()),
         supportingEvidence: z.array(z.string()),
         gaps: z.array(z.string()),
       }),
@@ -221,7 +234,9 @@ export type AssumptionEvidence = z.infer<typeof AssumptionEvidenceSchema>;
 export type GraphEdge = z.infer<typeof GraphEdgeSchema>;
 export type AssumptionGraph = z.infer<typeof AssumptionGraphSchema>;
 export type EvidenceClass = z.infer<typeof EvidenceClassSchema>;
+export type ClaimPrecision = z.infer<typeof ClaimPrecisionSchema>;
 export type EvidenceKind = z.infer<typeof EvidenceKindSchema>;
+export type ParsedAssertion = z.infer<typeof ParsedAssertionSchema>;
 export type Experiment = z.infer<typeof ExperimentSchema>;
 export type Observation = z.infer<typeof ObservationSchema>;
 export type Surprise = z.infer<typeof SurpriseSchema>;

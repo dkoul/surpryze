@@ -5,8 +5,9 @@ import type {
   GraphEdge,
   ParsedTest,
 } from '../knowledge/schemas.js';
-import { classifyEvidence, deriveConfidenceFromEvidence } from './confidence.js';
-import { assertionToBelief, titleToBelief } from './beliefs.js';
+import type { ClaimPrecision } from '../knowledge/schemas.js';
+import { aggregateClaimPrecision, classifyEvidence, deriveConfidenceFromEvidence } from './confidence.js';
+import { assertionToBelief, precisionEvidenceWeight, titleToBelief } from './beliefs.js';
 
 export interface MinedAssumptionBundle {
   assumption: Assumption;
@@ -50,6 +51,8 @@ interface Candidate {
   assertionExpr?: string;
   evidenceKind: AssumptionEvidence['evidenceKind'];
   linkKind: 'explicit' | 'implicit';
+  claimPrecision: ClaimPrecision;
+  expectedLiterals: string[];
 }
 
 const GAP_ASSUMPTIONS: Array<{
@@ -87,13 +90,16 @@ function titleToCandidates(test: ParsedTest): Candidate[] {
   const out: Candidate[] = [];
 
   // Every test is an oracle about its title (baseline assumption).
+  const titleBelief = titleToBelief(test);
   out.push({
-    statement: titleToBelief(test),
+    statement: titleBelief.statement,
     feature: test.feature,
     source: 'test',
     testId: test.id,
     evidenceKind: 'direct',
     linkKind: 'implicit',
+    claimPrecision: titleBelief.precision,
+    expectedLiterals: titleBelief.expectedLiterals,
   });
 
   const tl = test.title.toLowerCase();
@@ -120,12 +126,15 @@ function titleToCandidates(test: ParsedTest): Candidate[] {
       testId: test.id,
       evidenceKind: 'direct',
       linkKind: 'implicit',
+      claimPrecision: 'structural',
+      expectedLiterals: [],
     });
   }
 
   for (const a of test.assertionDetails ?? []) {
+    const belief = assertionToBelief(a, test);
     out.push({
-      statement: assertionToBelief(a.expression, test),
+      statement: belief.statement,
       feature: test.feature,
       source: 'test',
       testId: test.id,
@@ -133,18 +142,23 @@ function titleToCandidates(test: ParsedTest): Candidate[] {
       assertionExpr: a.expression,
       evidenceKind: 'direct',
       linkKind: 'explicit',
+      claimPrecision: belief.precision,
+      expectedLiterals: belief.expectedLiterals,
     });
   }
 
   for (const expr of test.assertions) {
     if (test.assertionDetails?.some((d) => d.expression === expr)) continue;
+    const belief = assertionToBelief({ id: 'legacy', expression: expr }, test);
     out.push({
-      statement: assertionToBelief(expr, test),
+      statement: belief.statement,
       feature: test.feature,
       source: 'test',
       testId: test.id,
       evidenceKind: 'direct',
       linkKind: 'explicit',
+      claimPrecision: belief.precision,
+      expectedLiterals: belief.expectedLiterals,
     });
   }
 
@@ -176,6 +190,8 @@ export function mineAssumptionGraph(tests: ParsedTest[]): MineResult {
         source: 'inferred',
         evidenceKind: 'missing',
         linkKind: 'implicit',
+        claimPrecision: 'intent',
+        expectedLiterals: [],
       },
     ]);
   }
@@ -207,7 +223,7 @@ export function mineAssumptionGraph(tests: ParsedTest[]): MineResult {
           refLabel: c.assertionExpr ?? testTitle ?? c.testId,
           evidenceKind: c.evidenceKind,
           polarity: 'supports',
-          weight: c.evidenceKind === 'direct' ? 0.38 : c.evidenceKind === 'indirect' ? 0.18 : 0,
+          weight: precisionEvidenceWeight(c.claimPrecision),
         });
         edges.push({
           id: edgeId(c.testId, id, 'supports'),
@@ -235,8 +251,12 @@ export function mineAssumptionGraph(tests: ParsedTest[]): MineResult {
     const contradictions = findContradictions(statement, candidates, tests, id);
     evidence.push(...contradictions);
 
+    const claimPrecision = aggregateClaimPrecision(candidates.map((c) => c.claimPrecision));
+    const expectedLiterals = [
+      ...new Set(candidates.flatMap((c) => c.expectedLiterals)),
+    ];
     const confidence = deriveConfidenceFromEvidence(evidence);
-    const evidenceClass = classifyEvidence(evidence, contradictions.length > 0);
+    const evidenceClass = classifyEvidence(evidence, contradictions.length > 0, claimPrecision);
     const hasDirectEvidence = evidence.some(
       (e) => e.polarity === 'supports' && e.evidenceKind === 'direct',
     );
@@ -253,6 +273,8 @@ export function mineAssumptionGraph(tests: ParsedTest[]): MineResult {
       source: candidates.some((c) => c.source === 'test') ? 'test' : 'inferred',
       confidence,
       evidenceClass,
+      claimPrecision,
+      expectedLiterals,
       status,
       provenance: evidence
         .filter((e) => e.polarity === 'supports' && e.evidenceKind !== 'missing')

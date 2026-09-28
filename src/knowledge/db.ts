@@ -1,6 +1,7 @@
 import Database from 'better-sqlite3';
 import fs from 'node:fs';
 import path from 'node:path';
+import { migrateDatabase } from './migrate.js';
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS meta (
@@ -82,5 +83,6 @@ export function openDatabase(surpryzeDir: string): Database.Database {
   const db = new Database(dbPath);
   db.pragma('journal_mode = WAL');
   db.exec(SCHEMA);
+  migrateDatabase(db);
   return db;
 }

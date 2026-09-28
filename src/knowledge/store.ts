@@ -1,14 +1,19 @@
 import type Database from 'better-sqlite3';
 import type {
   Assumption,
+  AssumptionEvidence,
   Experiment,
+  GraphEdge,
   Observation,
   ParsedTest,
   Surprise,
 } from './schemas.js';
 
 export class KnowledgeStore {
-  constructor(private readonly db: Database.Database) {}
+  constructor(
+    private readonly db: Database.Database,
+    readonly surpryzeDir: string = '',
+  ) {}
 
   setMeta(key: string, value: string): void {
     this.db
@@ -24,6 +29,12 @@ export class KnowledgeStore {
       | { value: string }
       | undefined;
     return row?.value;
+  }
+
+  clearGraphArtifacts(): void {
+    this.db.prepare(`DELETE FROM assumption_evidence`).run();
+    this.db.prepare(`DELETE FROM graph_edges`).run();
+    this.db.prepare(`DELETE FROM assumptions`).run();
   }
 
   upsertTest(test: ParsedTest): void {
@@ -60,8 +71,8 @@ export class KnowledgeStore {
   upsertAssumption(a: Assumption): void {
     this.db
       .prepare(
-        `INSERT INTO assumptions (id, statement, feature, source, confidence, status, provenance_json, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `INSERT INTO assumptions (id, statement, feature, source, confidence, status, provenance_json, created_at, updated_at, evidence_class, missing_scenarios_json, statement_hash)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(id) DO UPDATE SET
            statement = excluded.statement,
            feature = excluded.feature,
@@ -69,7 +80,10 @@ export class KnowledgeStore {
            confidence = excluded.confidence,
            status = excluded.status,
            provenance_json = excluded.provenance_json,
-           updated_at = excluded.updated_at`,
+           updated_at = excluded.updated_at,
+           evidence_class = excluded.evidence_class,
+           missing_scenarios_json = excluded.missing_scenarios_json,
+           statement_hash = excluded.statement_hash`,
       )
       .run(
         a.id,
@@ -81,6 +95,9 @@ export class KnowledgeStore {
         JSON.stringify(a.provenance),
         a.createdAt,
         a.updatedAt,
+        a.evidenceClass,
+        JSON.stringify(a.missingScenarios ?? []),
+        a.statementHash ?? null,
       );
   }
 
@@ -94,6 +111,77 @@ export class KnowledgeStore {
       | Record<string, unknown>
       | undefined;
     return row ? rowToAssumption(row) : undefined;
+  }
+
+  upsertAssumptionEvidence(e: AssumptionEvidence): void {
+    this.db
+      .prepare(
+        `INSERT INTO assumption_evidence (id, assumption_id, ref_kind, ref_id, ref_label, evidence_kind, polarity, weight, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(id) DO UPDATE SET
+           evidence_kind = excluded.evidence_kind,
+           polarity = excluded.polarity,
+           weight = excluded.weight`,
+      )
+      .run(
+        e.id,
+        e.assumptionId,
+        e.refKind,
+        e.refId,
+        e.refLabel ?? null,
+        e.evidenceKind,
+        e.polarity,
+        e.weight,
+        new Date().toISOString(),
+      );
+  }
+
+  listAssumptionEvidence(): AssumptionEvidence[] {
+    const rows = this.db.prepare(`SELECT * FROM assumption_evidence`).all() as Record<string, unknown>[];
+    return rows.map((row) => ({
+      id: row.id as string,
+      assumptionId: row.assumption_id as string,
+      refKind: row.ref_kind as AssumptionEvidence['refKind'],
+      refId: row.ref_id as string,
+      refLabel: (row.ref_label as string) ?? undefined,
+      evidenceKind: row.evidence_kind as AssumptionEvidence['evidenceKind'],
+      polarity: row.polarity as AssumptionEvidence['polarity'],
+      weight: row.weight as number,
+    }));
+  }
+
+  upsertGraphEdge(edge: GraphEdge): void {
+    this.db
+      .prepare(
+        `INSERT INTO graph_edges (id, from_kind, from_id, to_kind, to_id, relation, evidence_kind, metadata_json, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(id) DO NOTHING`,
+      )
+      .run(
+        edge.id,
+        edge.fromKind,
+        edge.fromId,
+        edge.toKind,
+        edge.toId,
+        edge.relation,
+        edge.evidenceKind ?? null,
+        edge.metadata ? JSON.stringify(edge.metadata) : null,
+        new Date().toISOString(),
+      );
+  }
+
+  listGraphEdges(): GraphEdge[] {
+    const rows = this.db.prepare(`SELECT * FROM graph_edges`).all() as Record<string, unknown>[];
+    return rows.map((row) => ({
+      id: row.id as string,
+      fromKind: row.from_kind as GraphEdge['fromKind'],
+      fromId: row.from_id as string,
+      toKind: row.to_kind as GraphEdge['toKind'],
+      toId: row.to_id as string,
+      relation: row.relation as GraphEdge['relation'],
+      evidenceKind: (row.evidence_kind as GraphEdge['evidenceKind']) ?? undefined,
+      metadata: row.metadata_json ? JSON.parse(row.metadata_json as string) : undefined,
+    }));
   }
 
   upsertExperiment(e: Experiment): void {
@@ -221,11 +309,16 @@ function rowToAssumption(row: Record<string, unknown>): Assumption {
   return {
     id: row.id as string,
     statement: row.statement as string,
+    statementHash: (row.statement_hash as string) ?? undefined,
     feature: (row.feature as string) ?? undefined,
     source: row.source as Assumption['source'],
     confidence: row.confidence as number,
+    evidenceClass: (row.evidence_class as Assumption['evidenceClass']) ?? 'UNKNOWN',
     status: row.status as Assumption['status'],
     provenance: JSON.parse(row.provenance_json as string),
+    missingScenarios: row.missing_scenarios_json
+      ? JSON.parse(row.missing_scenarios_json as string)
+      : [],
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string,
   };

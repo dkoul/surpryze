@@ -15,6 +15,9 @@ function collectCalls(
   assertions: string[],
   routes: string[],
   apiCalls: string[],
+  assertionDetails: { id: string; expression: string; line?: number }[],
+  testId: string,
+  assertionIndex: { n: number },
 ): void {
   if (node.type === 'CallExpression') {
     const callee = node.callee;
@@ -33,7 +36,11 @@ function collectCalls(
           }
         }
         if (obj === 'expect') {
-          assertions.push(extractExpect(node));
+          const expr = extractExpect(node);
+          assertions.push(expr);
+          const line = node.loc?.start.line;
+          const aid = `AS-${testId}-${assertionIndex.n++}`;
+          assertionDetails.push({ id: aid, expression: expr, line });
         }
       }
     }
@@ -47,11 +54,11 @@ function collectCalls(
     if (Array.isArray(child)) {
       for (const c of child) {
         if (c && typeof c === 'object' && 'type' in c) {
-          collectCalls(c as TSESTree.Node, actions, assertions, routes, apiCalls);
+          collectCalls(c as TSESTree.Node, actions, assertions, routes, apiCalls, assertionDetails, testId, assertionIndex);
         }
       }
     } else if (typeof child === 'object' && child !== null && 'type' in child) {
-      collectCalls(child as TSESTree.Node, actions, assertions, routes, apiCalls);
+      collectCalls(child as TSESTree.Node, actions, assertions, routes, apiCalls, assertionDetails, testId, assertionIndex);
     }
   }
 }
@@ -122,11 +129,12 @@ export function parsePlaywrightFile(filePath: string, projectRoot: string): Pars
         if ((fn === 'test' || fn === 'it') && (body?.type === 'ArrowFunctionExpression' || body?.type === 'FunctionExpression')) {
           const actions: string[] = [];
           const assertions: string[] = [];
+          const assertionDetails: { id: string; expression: string; line?: number }[] = [];
           const routes: string[] = [];
           const apiCalls: string[] = [];
-          collectCalls(body, actions, assertions, routes, apiCalls);
           const fullTitle = [...describePath, title].join(' > ');
           const id = hashId([rel, fullTitle]);
+          collectCalls(body, actions, assertions, routes, apiCalls, assertionDetails, id, { n: 0 });
           tests.push({
             id,
             filePath: rel,
@@ -135,6 +143,7 @@ export function parsePlaywrightFile(filePath: string, projectRoot: string): Pars
             describePath,
             actions: [...new Set(actions)],
             assertions: [...new Set(assertions)],
+            assertionDetails,
             routes: [...new Set(routes)],
             apiCalls: [...new Set(apiCalls)],
           });

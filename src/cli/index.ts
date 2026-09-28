@@ -19,6 +19,8 @@ import { writeJsonReport } from '../reporting/json.js';
 import { buildInvestigationBrief, classifySurprise } from '../investigation/engine.js';
 import { computeMetrics } from '../reporting/metrics.js';
 import type { InvestigationClassification } from '../investigation/engine.js';
+import { loadAssumptionGraph } from '../knowledge/graph-builder.js';
+import { formatGraphReport } from '../graph/display.js';
 
 const program = new Command();
 
@@ -44,8 +46,26 @@ program
   });
 
 program
+  .command('graph')
+  .description('Display the Assumption Graph (weakest assumptions first)')
+  .option('--root <path>', 'Project root', process.cwd())
+  .option('--json', 'Print machine-readable assumption-graph.json to stdout')
+  .action((opts: { root: string; json?: boolean }) => {
+    const root = resolveProjectRoot(opts.root);
+    const config = loadConfig(root);
+    const store = new KnowledgeStore(openDatabase(config.surpryzeDir), config.surpryzeDir);
+    const tests = store.listTests();
+    const graph = loadAssumptionGraph(store, tests);
+    if (opts.json) {
+      console.log(JSON.stringify(graph, null, 2));
+    } else {
+      console.log(formatGraphReport(graph));
+    }
+  });
+
+program
   .command('learn')
-  .description('Parse tests and build knowledge model')
+  .description('Parse tests and build the Assumption Graph')
   .option('--root <path>', 'Project root', process.cwd())
   .action(async (opts: { root: string }) => {
     const root = resolveProjectRoot(opts.root);
@@ -80,7 +100,7 @@ program
   .action((surpriseId: string, opts: { root: string; classify?: string; note?: string; decision?: string }) => {
     const root = resolveProjectRoot(opts.root);
     const config = loadConfig(root);
-    const store = new KnowledgeStore(openDatabase(config.surpryzeDir));
+    const store = new KnowledgeStore(openDatabase(config.surpryzeDir), config.surpryzeDir);
     const brief = buildInvestigationBrief(store, surpriseId);
     if (!brief) {
       console.error(`Surprise not found: ${surpriseId}`);
@@ -106,7 +126,7 @@ program
   .action((opts: { root: string }) => {
     const root = resolveProjectRoot(opts.root);
     const config = loadConfig(root);
-    const store = new KnowledgeStore(openDatabase(config.surpryzeDir));
+    const store = new KnowledgeStore(openDatabase(config.surpryzeDir), config.surpryzeDir);
     const html = writeHtmlReport(store, config.surpryzeDir);
     const json = writeJsonReport(store, config.surpryzeDir);
     console.log(`Wrote ${html}`);
@@ -120,7 +140,7 @@ program
   .action((opts: { root: string }) => {
     const root = resolveProjectRoot(opts.root);
     const config = loadConfig(root);
-    const store = new KnowledgeStore(openDatabase(config.surpryzeDir));
+    const store = new KnowledgeStore(openDatabase(config.surpryzeDir), config.surpryzeDir);
     const m = computeMetrics(store);
     console.log('SURPRYZE STATUS');
     console.log(`  Tests: ${m.testsAnalyzed}`);

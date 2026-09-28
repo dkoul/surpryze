@@ -22,6 +22,7 @@ import type { InvestigationClassification } from '../investigation/engine.js';
 import { loadAssumptionGraph } from '../knowledge/graph-builder.js';
 import { formatGraphReport } from '../graph/display.js';
 import { formatGapsReport } from '../graph/gaps-display.js';
+import { formatLearnNextSteps } from '../agent/handoff.js';
 
 const program = new Command();
 
@@ -48,7 +49,7 @@ program
 
 program
   .command('gaps')
-  .description('Assumptions you are making and where to write tests')
+  .description('Shorthand: gaps + SFDOT view (same data as graph, gaps section)')
   .option('--root <path>', 'Project root', process.cwd())
   .option('--json', 'Print testing-gaps.json payload')
   .action((opts: { root: string; json?: boolean }) => {
@@ -65,6 +66,8 @@ program
             testingGaps: graph.testingGaps,
             whatToTestNext: graph.agentBrief.whatToTestNext,
             fidelityNote: graph.agentBrief.fidelityNote,
+            coverageDisclaimer: graph.coverageDisclaimer,
+            sfdotCoverage: graph.sfdotCoverage,
           },
           null,
           2,
@@ -77,10 +80,11 @@ program
 
 program
   .command('graph')
-  .description('Display the Assumption Graph (weakest assumptions first)')
+  .description('Display the Assumption Graph (step 2: then use gap-analyst skill)')
   .option('--root <path>', 'Project root', process.cwd())
   .option('--json', 'Print machine-readable assumption-graph.json to stdout')
-  .action((opts: { root: string; json?: boolean }) => {
+  .option('--no-gaps', 'Show assumption graph only (omit gaps + SFDOT summary)')
+  .action((opts: { root: string; json?: boolean; noGaps?: boolean }) => {
     const root = resolveProjectRoot(opts.root);
     const config = loadConfig(root);
     const store = new KnowledgeStore(openDatabase(config.surpryzeDir), config.surpryzeDir);
@@ -88,8 +92,19 @@ program
     const graph = loadAssumptionGraph(store, tests);
     if (opts.json) {
       console.log(JSON.stringify(graph, null, 2));
-    } else {
-      console.log(formatGraphReport(graph));
+      return;
+    }
+    const showGaps = !opts.noGaps;
+    if (showGaps) {
+      console.log(formatGapsReport(graph));
+      console.log('');
+      console.log('— Assumption graph (weakest first) —');
+    }
+    console.log(formatGraphReport(graph));
+    const handoff = store.getMeta('agentHandoffPath');
+    if (handoff) {
+      console.log('');
+      console.log(formatLearnNextSteps(handoff));
     }
   });
 

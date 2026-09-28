@@ -28,7 +28,9 @@
   "license": "MIT",
   "files": [
     "dist",
-    "README.md"
+    "README.md",
+    "skills",
+    "docs"
   ],
   "dependencies": {
     "@typescript-eslint/parser": "^8.18.0",

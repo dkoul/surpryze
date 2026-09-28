@@ -4,8 +4,7 @@ import { detectPlaywrightProject } from '../playwright/detect.js';
 import { parseAllTestFiles } from '../parser/playwright-tests.js';
 import { buildAndPersistAssumptionGraph } from '../knowledge/graph-builder.js';
 import type { SurpryzeConfig } from '../knowledge/schemas.js';
-import { formatGraphReport } from '../graph/display.js';
-import { formatGapsReport } from '../graph/gaps-display.js';
+import { formatLearnNextSteps } from '../agent/handoff.js';
 
 export async function runLearn(config: SurpryzeConfig): Promise<void> {
   const info = detectPlaywrightProject(config.projectRoot);
@@ -18,25 +17,24 @@ export async function runLearn(config: SurpryzeConfig): Promise<void> {
     store.upsertTest(t);
   }
 
-  const graph = buildAndPersistAssumptionGraph(store, tests);
+  const graph = buildAndPersistAssumptionGraph(store, tests, config.projectRoot);
 
   store.setMeta('lastLearnAt', new Date().toISOString());
   store.setMeta('testsParsed', String(tests.length));
   store.setMeta('assumptionsCount', String(graph.projectSummary.assumptions));
 
-  console.log(`Learned from ${tests.length} tests → ${graph.projectSummary.assumptions} assumptions in graph.`);
+  const handoffPath = store.getMeta('agentHandoffPath') ?? `${config.surpryzeDir}/agent-handoff.json`;
+
+  console.log(
+    `Learned from ${tests.length} tests → ${graph.projectSummary.assumptions} assumptions, ${graph.projectSummary.testingGaps} heuristic gaps.`,
+  );
   if (tests.length > 0 && graph.projectSummary.assumptions === 0) {
     console.warn(
       'Warning: no assumptions extracted. Ensure tests use expect(...).matcher() and are .spec.ts / .test.ts (or .js) under your Playwright testDir.',
     );
   }
-  if (tests.length > 0 && graph.projectSummary.edges === 0) {
-    console.warn('Warning: no test→assumption edges. Re-run after updating Surpryze or check parser output with `graph --json`.');
-  }
   console.log(`Wrote ${config.surpryzeDir}/assumption-graph.json`);
+  console.log(`Wrote ${handoffPath}`);
   console.log('');
-  console.log(formatGapsReport(graph));
-  console.log('');
-  console.log('— Detailed assumption graph —');
-  console.log(formatGraphReport(graph));
+  console.log(formatLearnNextSteps(handoffPath));
 }

@@ -10,7 +10,10 @@ import type { AssumptionEvidence } from './schemas.js';
 import {
   analyzeTestingGaps,
   buildAssumptionsSummary,
+  COVERAGE_DISCLAIMER,
 } from '../gaps/analyzer.js';
+import { buildSfdotCoverage } from '../gaps/sfdot.js';
+import { writeAgentHandoff } from '../agent/handoff.js';
 
 function attachSurpriseContradictions(store: KnowledgeStore): void {
   for (const surprise of store.listSurprises()) {
@@ -49,6 +52,7 @@ function attachSurpriseContradictions(store: KnowledgeStore): void {
 export function buildAndPersistAssumptionGraph(
   store: KnowledgeStore,
   tests: ParsedTest[],
+  projectRoot?: string,
 ): AssumptionGraph {
   const mined = mineAssumptionGraph(tests);
   store.clearGraphArtifacts();
@@ -77,6 +81,8 @@ export function buildAndPersistAssumptionGraph(
         assumptionsSummary: graph.assumptionsSummary,
         testingGaps: graph.testingGaps,
         whatToTestNext: graph.agentBrief.whatToTestNext,
+        coverageDisclaimer: graph.coverageDisclaimer,
+        sfdotCoverage: graph.sfdotCoverage,
       },
       null,
       2,
@@ -85,6 +91,11 @@ export function buildAndPersistAssumptionGraph(
   store.setMeta('testingGapsPath', gapsPath);
   store.setMeta('assumptionGraphPath', jsonPath);
   store.setMeta('assumptionGraphAt', graph.generatedAt);
+
+  const root = projectRoot ?? path.dirname(path.dirname(store.surpryzeDir));
+  const handoffPath = writeAgentHandoff(store.surpryzeDir, root, graph);
+  store.setMeta('agentHandoffPath', handoffPath);
+
   return graph;
 }
 
@@ -172,6 +183,7 @@ export function assembleGraphView(store: KnowledgeStore, tests: ParsedTest[]): A
 
   const assumptionsSummary = buildAssumptionsSummary(tests, assumptions);
   const testingGaps = analyzeTestingGaps(tests, assumptionViews);
+  const sfdotCoverage = buildSfdotCoverage(tests);
   const whatToTestNext = testingGaps
     .filter((g) => g.priority === 'high')
     .slice(0, 8)
@@ -188,6 +200,8 @@ export function assembleGraphView(store: KnowledgeStore, tests: ParsedTest[]): A
     },
     assumptionsSummary,
     testingGaps,
+    coverageDisclaimer: COVERAGE_DISCLAIMER,
+    sfdotCoverage,
     nodes,
     edges,
     assumptions: assumptionViews,

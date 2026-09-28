@@ -2,7 +2,18 @@
 
 **Turn surprise into knowledge.**
 
-Surpryze reads your existing Playwright tests and builds an **Assumption Graph**: what your suite believes, what evidence supports each belief, and which assumptions are weakest.
+Surpryze is a **layer on top of Playwright**—your tests and runner stay the same. It answers:
+
+1. **What assumptions are you making in tests?** (titles, actions, `expect()` oracles)  
+2. **Where should you write more tests?** (untested beliefs, weak oracles, contradictions, missing assertions)
+
+```bash
+npx surpryze learn   # parse suite → graph + gaps
+npx surpryze gaps    # human summary: assumptions + test recommendations
+npx surpryze gaps --json
+```
+
+Artifacts: `.surpryze/assumption-graph.json`, `.surpryze/testing-gaps.json`
 
 ---
 
@@ -50,10 +61,10 @@ You do **not** need `--root` when your shell is already at the project root. Eve
 
 | Artifact | Path |
 |----------|------|
-| Assumption Graph (agents) | `.surpryze/assumption-graph.json` |
+| Assumptions + where to test (agents) | `.surpryze/testing-gaps.json` or `gaps --json` |
+| Full assumption graph | `.surpryze/assumption-graph.json` or `graph --json` |
+| Human summary | `npx surpryze gaps` |
 | Knowledge DB | `.surpryze/knowledge.db` |
-| Human-readable graph | `npx surpryze graph` |
-| JSON to stdout | `npx surpryze graph --json` |
 
 **5. Re-run after you change tests**
 
@@ -77,8 +88,8 @@ Use the same `baseURL` you use in Playwright (or pass `--base-url`).
 ```json
 {
   "scripts": {
-    "beliefs": "surpryze learn && surpryze graph",
-    "beliefs:json": "surpryze graph --json"
+    "beliefs": "surpryze learn && surpryze gaps",
+    "beliefs:json": "surpryze gaps --json"
   }
 }
 ```
@@ -92,9 +103,11 @@ Then: `npm run beliefs`
 | Command | When |
 |---------|------|
 | `npx surpryze init` | Once per repo — detects Playwright, creates `.surpryze/` |
-| `npx surpryze learn` | After test changes — rebuilds the Assumption Graph |
-| `npx surpryze graph` | Review weakest assumptions and gaps |
-| `npx surpryze graph --json` | Export for Cursor / Codex / Claude Code |
+| `npx surpryze learn` | After test changes — graph + gap analysis |
+| `npx surpryze gaps` | **Assumptions you make** + **where to add tests** |
+| `npx surpryze gaps --json` | Machine-readable recommendations for agents |
+| `npx surpryze graph` | Full assumption graph (weakest claims first) |
+| `npx surpryze graph --json` | Full graph JSON |
 | `npx surpryze explore --budget <n>` | Run bounded experiments (app must be up) |
 | `npx surpryze investigate SURPRISE-…` | Inspect and classify a surprise |
 | `npx surpryze report` | HTML + JSON summary under `.surpryze/` |

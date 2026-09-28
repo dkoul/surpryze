@@ -21,12 +21,13 @@ import { computeMetrics } from '../reporting/metrics.js';
 import type { InvestigationClassification } from '../investigation/engine.js';
 import { loadAssumptionGraph } from '../knowledge/graph-builder.js';
 import { formatGraphReport } from '../graph/display.js';
+import { formatGapsReport } from '../graph/gaps-display.js';
 
 const program = new Command();
 
 program
   .name('surpryze')
-  .description('Epistemic testing layer for Playwright')
+  .description('Playwright layer: surface test assumptions and where to add tests')
   .version('0.1.0');
 
 program
@@ -43,6 +44,35 @@ program
     fs.mkdirSync(path.join(config.surpryzeDir, 'experiments'), { recursive: true });
     console.log(`Initialized Surpryze at ${surpryzeDir(root)}`);
     console.log(`Detected ${info.testFiles.length} test files`);
+  });
+
+program
+  .command('gaps')
+  .description('Assumptions you are making and where to write tests')
+  .option('--root <path>', 'Project root', process.cwd())
+  .option('--json', 'Print testing-gaps.json payload')
+  .action((opts: { root: string; json?: boolean }) => {
+    const root = resolveProjectRoot(opts.root);
+    const config = loadConfig(root);
+    const store = new KnowledgeStore(openDatabase(config.surpryzeDir), config.surpryzeDir);
+    const tests = store.listTests();
+    const graph = loadAssumptionGraph(store, tests);
+    if (opts.json) {
+      console.log(
+        JSON.stringify(
+          {
+            assumptionsSummary: graph.assumptionsSummary,
+            testingGaps: graph.testingGaps,
+            whatToTestNext: graph.agentBrief.whatToTestNext,
+            fidelityNote: graph.agentBrief.fidelityNote,
+          },
+          null,
+          2,
+        ),
+      );
+    } else {
+      console.log(formatGapsReport(graph));
+    }
   });
 
 program

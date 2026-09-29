@@ -1,6 +1,6 @@
 ---
 name: surpryze-gap-analyst
-description: Use the Surpryze assumption graph to suggest test gaps, data variation, and untested flows. Invoke after surpryze learn and graph in a Playwright repo.
+description: Optional follow-on after the main Surpryze skill — suggest test gaps from graph.json. Requires surpryze prepare → skill → finalize first.
 ---
 
 # Surpryze gap analyst
@@ -9,7 +9,7 @@ You are a **gap analyst** subagent. You do not run Playwright or change producti
 
 ## Required workflow (user / parent agent)
 
-1. `npx surpryze analyze` — semantic + structural analysis → graph
+1. Complete main skill `skills/surpryze/SKILL.md` (`prepare` → semantic proposals → `finalize`)
 2. `npx surpryze graph --json` or read `.surpryze/graph.json`
 3. **You (this skill)** — suggest gaps using the artifacts below (optional; `agent-context.md` is the default agent handoff)
 

@@ -239,7 +239,7 @@ export function assembleGraphView(
     weakAssumptionsFirst,
     agentBrief: {
       whatTestsBelieve: `The suite encodes ${assumptions.length} claims across ${tests.length} tests (${assumptions.filter((a) => a.claimPrecision === 'literal').length} with literal expected values).`,
-      whyTheyBelieveIt: `Semantic analysis (${buildOptions.semanticAnalyzer ?? 'none'}) plus AST mining. ${allEvidence.filter((e) => e.evidenceKind === 'direct').length} direct evidence links tie tests/assertions to claims.`,
+      whyTheyBelieveIt: `Agent semantic proposals (${buildOptions.semanticAnalyzer ?? 'required'}) plus AST mining. ${allEvidence.filter((e) => e.evidenceKind === 'direct').length} direct evidence links tie tests/assertions to claims.`,
       fidelityNote:
         'Assumptions combine LLM semantic interpretation with structural test parsing. claimPrecision=literal means expected values were read from source; structural means matcher type without a static value; intent means title-only or semantic inference. confidence is computed from evidence (directness, independence, contradictions)—not from LLM self-scores. Application source ' +
         (appSource ? 'was available as optional evidence.' : 'was not provided—unknown behavior stays UNKNOWN, not "false".') +

@@ -9,7 +9,7 @@ function surpryzePackageRoot(): string {
 
 export interface AgentHandoff {
   version: 1;
-  workflow: ['analyze', 'graph', 'context'];
+  workflow: ['prepare', 'surpryze-skill', 'finalize', 'context'];
   generatedAt: string;
   projectRoot: string;
   artifacts: {
@@ -20,7 +20,7 @@ export interface AgentHandoff {
     knowledgeDb: string;
   };
   skill: {
-    id: 'surpryze-gap-analyst';
+    id: 'surpryze';
     relativePath: string;
     absolutePath: string;
     description: string;
@@ -47,12 +47,12 @@ export function writeAgentHandoff(
   graph: AssumptionGraph,
 ): string {
   const handoffPath = path.join(surpryzeDir, 'agent-handoff.json');
-  const skillRelative = 'skills/surpryze-gap-analyst/SKILL.md';
+  const skillRelative = 'skills/surpryze/SKILL.md';
   const skillAbsolute = path.join(surpryzePackageRoot(), skillRelative);
 
   const payload: AgentHandoff = {
     version: 1,
-    workflow: ['analyze', 'graph', 'context'],
+    workflow: ['prepare', 'surpryze-skill', 'finalize', 'context'],
     generatedAt: graph.generatedAt,
     projectRoot,
     artifacts: {
@@ -63,11 +63,11 @@ export function writeAgentHandoff(
       knowledgeDb: path.join(surpryzeDir, 'knowledge.db'),
     },
     skill: {
-      id: 'surpryze-gap-analyst',
+      id: 'surpryze',
       relativePath: skillRelative,
       absolutePath: skillAbsolute,
       description:
-        'Subagent/skill: read assumption-graph.json and suggest test gaps, data variation, and flows with grounded IDs.',
+        'Primary Cursor/Claude skill: required semantic analysis + Assumption Graph workflow.',
     },
     summary: {
       testsAnalyzed: graph.projectSummary.testsAnalyzed,
@@ -85,10 +85,10 @@ export function writeAgentHandoff(
       fidelityNote: graph.agentBrief.fidelityNote,
     },
     nextSteps: [
-      'npx surpryze graph',
-      'npx surpryze graph --json',
-      'npx surpryze context  # agent-context.md for Cursor / Claude Code',
-      `Optional skill: ${skillRelative}`,
+      'npx surpryze prepare',
+      `Run skill: ${skillRelative} → write semantic-proposals.json`,
+      'npx surpryze finalize',
+      'npx surpryze context',
     ],
   };
 
@@ -99,9 +99,10 @@ export function writeAgentHandoff(
 export function formatLearnNextSteps(handoffPath: string): string {
   return [
     'Next steps:',
-    '  1. npx surpryze graph          # terminal review',
-    '  2. npx surpryze context        # agent-context.md for coding agents',
-    '  3. Open .surpryze/report.html  # human report',
+    '  1. npx surpryze prepare        # if not done',
+    '  2. Surpryze skill → semantic-proposals.json',
+    '  3. npx surpryze finalize',
+    '  4. npx surpryze context',
     `     Handoff: ${handoffPath}`,
   ].join('\n');
 }

@@ -13,7 +13,7 @@
     "surpryze": "node dist/cli/index.js",
     "test": "npm run build && playwright test",
     "demo:app": "node examples/password-reset-app/server.js",
-    "demo:learn": "npm run build && node dist/cli/index.js learn --root examples/password-reset-suite",
+    "demo:analyze": "npm run build && node dist/cli/index.js init --root examples/password-reset-suite && node dist/cli/index.js prepare --root examples/password-reset-suite && node dist/cli/index.js finalize --root examples/password-reset-suite --semantic-file examples/password-reset-suite/surpryze/semantic-proposals.fixture.json",
     "demo:full": "npm run build && node dist/cli/index.js init --root examples/password-reset-suite && node dist/cli/index.js learn --root examples/password-reset-suite && node dist/cli/index.js explore --root examples/password-reset-suite --budget 5 && node dist/cli/index.js report --root examples/password-reset-suite"
   },
   "engines": {

@@ -8,13 +8,19 @@ This document is the source-of-truth product definition for the MVP reset.
 > Assumption Graphs describe what teams believe software does.  
 > Surpryze makes those beliefs visible, measures the evidence behind them, and exposes what remains unknown.
 
+## Delivery model
+
+Surpryze ships as a **Cursor / Claude Code skill** (`skills/surpryze/`). The CLI parses tests and computes evidence; **the host LLM is mandatory** for semantic analysis (`semantic-proposals.json`). There is no optional heuristic-only mode.
+
 ## MVP workflow
 
-`Playwright tests → LLM semantic analysis → Assumption Graph → evidence analysis → confidence → gaps → coding agent`
+`prepare → (skill / agent semantic analysis) → finalize → graph → context`
 
 | Command | Role |
 |---------|------|
-| `surpryze analyze` | Complete analysis pipeline |
+| `surpryze prepare` | Structural digest + agent prompt |
+| *(skill)* | Agent writes `semantic-proposals.json` |
+| `surpryze finalize` | Graph, report, agent-context |
 | `surpryze graph` | Inspect current graph |
 | `surpryze context` | Agent-ready markdown (`--assumption`, `--weakest`) |
 

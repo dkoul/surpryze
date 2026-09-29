@@ -1,14 +1,8 @@
 import type { ParsedTest } from '../knowledge/schemas.js';
-import { getDefaultLlmProvider, type LlmProvider } from './provider.js';
+import { SemanticAnalysisRequiredError } from '../agent/semantic-task.js';
+import type { SemanticAssumptionProposal } from './semantic-types.js';
 
-/** LLM semantic output — no confidence; Surpryze computes evidence strength. */
-export interface SemanticAssumptionProposal {
-  statement: string;
-  feature?: string;
-  rationale: string;
-  derivedFromTestIds: string[];
-  applicationBehaviorKnown: boolean;
-}
+export type { SemanticAssumptionProposal } from './semantic-types.js';
 
 export interface SemanticAnalyzer {
   name: string;
@@ -24,33 +18,9 @@ function testsDigest(tests: ParsedTest[]): string {
     .join('\n\n');
 }
 
-export class HeuristicSemanticAnalyzer implements SemanticAnalyzer {
-  name = 'heuristic-semantic';
-
-  async analyzeTests(tests: ParsedTest[]): Promise<SemanticAssumptionProposal[]> {
-    const legacy = getDefaultLlmProvider();
-    const proposals = await legacy.proposeAssumptions(tests);
-    const testByFeature = new Map<string, string[]>();
-    for (const t of tests) {
-      const f = t.feature ?? 'general';
-      const list = testByFeature.get(f) ?? [];
-      list.push(t.id);
-      testByFeature.set(f, list);
-    }
-    return proposals.map((p) => ({
-      statement: p.statement,
-      feature: p.feature,
-      rationale: p.rationale,
-      derivedFromTestIds: p.feature
-        ? (testByFeature.get(p.feature) ?? tests.slice(0, 2).map((x) => x.id))
-        : tests.slice(0, 1).map((x) => x.id),
-      applicationBehaviorKnown: false,
-    }));
-  }
-}
-
+/** Headless / CI only — requires API key. Primary path is Cursor/Claude skill + proposals file. */
 export class OpenAiSemanticAnalyzer implements SemanticAnalyzer {
-  name = 'openai';
+  name = 'openai-api';
 
   constructor(
     private readonly apiKey: string,
@@ -102,11 +72,38 @@ Rules:
   }
 }
 
-export function resolveSemanticAnalyzer(): SemanticAnalyzer {
-  const key = process.env.SURPRYZE_LLM_API_KEY ?? process.env.OPENAI_API_KEY;
-  if (key) return new OpenAiSemanticAnalyzer(key);
-  return new HeuristicSemanticAnalyzer();
+export interface ResolveSemanticOptions {
+  proposalsFile?: string;
+  allowApiFallback?: boolean;
 }
 
-/** @deprecated use resolveSemanticAnalyzer */
-export type { LlmProvider };
+export function resolveSemanticAnalyzer(options: ResolveSemanticOptions = {}): SemanticAnalyzer {
+  if (options.proposalsFile) {
+    return {
+      name: 'agent-proposals-file',
+      analyzeTests: async () => {
+        const { loadSemanticProposalsFromFile } = await import('../agent/semantic-task.js');
+        return loadSemanticProposalsFromFile(options.proposalsFile!);
+      },
+    };
+  }
+
+  const key = process.env.SURPRYZE_LLM_API_KEY ?? process.env.OPENAI_API_KEY;
+  if (options.allowApiFallback && key) {
+    return new OpenAiSemanticAnalyzer(key);
+  }
+
+  throw new SemanticAnalysisRequiredError(
+    `Semantic analysis is required. Surpryze is a Cursor/Claude skill — the coding agent must produce ${PROPOSALS_HINT}.
+
+Steps:
+  1. npx surpryze prepare
+  2. Run the Surpryze skill (see skills/surpryze/SKILL.md) — the agent writes semantic-proposals.json
+  3. npx surpryze finalize
+
+For headless CI only, pass proposals: npx surpryze finalize --semantic-file <path>
+Or set OPENAI_API_KEY and use: npx surpryze analyze --use-api`,
+  );
+}
+
+const PROPOSALS_HINT = '.surpryze/semantic-proposals.json';

@@ -14,6 +14,7 @@ import {
   recordConfidenceRun,
 } from '../knowledge/confidence-run.js';
 import { writeAgentContext } from '../agent/context.js';
+import { semanticDir } from '../agent/semantic-task.js';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -25,9 +26,16 @@ export interface AnalyzeResult {
   semanticAnalyzer: string;
 }
 
+export interface AnalyzeOptions {
+  evidenceContext?: string;
+  applicationSourceAvailable?: boolean;
+  semanticProposalsFile?: string;
+  useApi?: boolean;
+}
+
 export async function runAnalyze(
   config: SurpryzeConfig,
-  options?: { evidenceContext?: string; applicationSourceAvailable?: boolean },
+  options: AnalyzeOptions = {},
 ): Promise<AnalyzeResult> {
   const info = detectPlaywrightProject(config.projectRoot);
   const tests = parseAllTestFiles(info.testFiles, config.projectRoot);
@@ -40,13 +48,16 @@ export async function runAnalyze(
   }
 
   const previous = loadPreviousSnapshot(config.surpryzeDir);
-  const analyzer = resolveSemanticAnalyzer();
-  const semanticProposals = await analyzer.analyzeTests(tests, options?.evidenceContext);
+  const analyzer = resolveSemanticAnalyzer({
+    proposalsFile: options.semanticProposalsFile,
+    allowApiFallback: options.useApi ?? false,
+  });
+  const semanticProposals = await analyzer.analyzeTests(tests, options.evidenceContext);
 
   const buildOpts: BuildGraphOptions = {
     semanticProposals,
     semanticAnalyzer: analyzer.name,
-    applicationSourceAvailable: options?.applicationSourceAvailable ?? false,
+    applicationSourceAvailable: options.applicationSourceAvailable ?? false,
   };
 
   const graph = buildAndPersistAssumptionGraph(store, tests, config.projectRoot, buildOpts);
@@ -62,6 +73,12 @@ export async function runAnalyze(
   store.setMeta('testsParsed', String(tests.length));
   store.setMeta('assumptionsCount', String(graph.projectSummary.assumptions));
   store.setMeta('semanticAnalyzer', analyzer.name);
+  store.setMeta('semanticPhase', 'complete');
+
+  fs.writeFileSync(
+    path.join(semanticDir(config.surpryzeDir), 'status.json'),
+    JSON.stringify({ phase: 'complete', completedAt: graph.generatedAt }, null, 2),
+  );
 
   const graphPath = path.join(config.surpryzeDir, 'graph.json');
   const reportPath = path.join(config.surpryzeDir, 'report.html');
@@ -69,7 +86,7 @@ export async function runAnalyze(
   const deltas = computeConfidenceDeltas(graph, previous);
 
   console.log(
-    `Analyzed ${tests.length} tests → ${graph.projectSummary.assumptions} assumptions (${analyzer.name} semantic pass).`,
+    `Analyzed ${tests.length} tests → ${graph.projectSummary.assumptions} assumptions (semantic: ${analyzer.name}).`,
   );
   console.log(`Wrote ${graphPath}`);
   console.log(`Wrote ${reportPath}`);
@@ -82,7 +99,7 @@ export async function runAnalyze(
     }
   }
   console.log('');
-  console.log('Next: `surpryze graph` (review) · `surpryze context` (agent-ready markdown)');
+  console.log('Next: `surpryze graph` · `surpryze context`');
 
   return {
     graphPath,
@@ -91,11 +108,4 @@ export async function runAnalyze(
     confidenceDeltas: deltas,
     semanticAnalyzer: analyzer.name,
   };
-}
-
-export function loadGraphJson(surpryzeDir: string): string | null {
-  const primary = path.join(surpryzeDir, 'graph.json');
-  if (fs.existsSync(primary)) return primary;
-  const legacy = path.join(surpryzeDir, 'assumption-graph.json');
-  return fs.existsSync(legacy) ? legacy : null;
 }

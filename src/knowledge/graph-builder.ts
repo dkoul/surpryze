@@ -13,7 +13,18 @@ import {
   COVERAGE_DISCLAIMER,
 } from '../gaps/analyzer.js';
 import { buildSfdotCoverage } from '../gaps/sfdot.js';
+import { buildExplorationCoverage } from '../exploration/dimensions.js';
 import { writeAgentHandoff } from '../agent/handoff.js';
+import { deriveAssumptionKind } from '../assumptions/kind.js';
+import { writeAssumptionGraphHtml } from '../reporting/graph-html.js';
+import { writeAgentContext } from '../agent/context.js';
+import type { SemanticAssumptionProposal } from '../llm/semantic.js';
+
+export interface BuildGraphOptions {
+  semanticProposals?: SemanticAssumptionProposal[];
+  semanticAnalyzer?: string;
+  applicationSourceAvailable?: boolean;
+}
 
 function attachSurpriseContradictions(store: KnowledgeStore): void {
   for (const surprise of store.listSurprises()) {
@@ -53,8 +64,11 @@ export function buildAndPersistAssumptionGraph(
   store: KnowledgeStore,
   tests: ParsedTest[],
   projectRoot?: string,
+  buildOptions: BuildGraphOptions = {},
 ): AssumptionGraph {
-  const mined = mineAssumptionGraph(tests);
+  const mined = mineAssumptionGraph(tests, {
+    semanticProposals: buildOptions.semanticProposals,
+  });
   store.clearGraphArtifacts();
 
   for (const bundle of mined.bundles) {
@@ -69,7 +83,9 @@ export function buildAndPersistAssumptionGraph(
 
   attachSurpriseContradictions(store);
 
-  const graph = assembleGraphView(store, tests);
+  const graph = assembleGraphView(store, tests, buildOptions);
+  const graphPath = path.join(store.surpryzeDir, 'graph.json');
+  fs.writeFileSync(graphPath, JSON.stringify(graph, null, 2));
   const jsonPath = path.join(store.surpryzeDir, 'assumption-graph.json');
   fs.writeFileSync(jsonPath, JSON.stringify(graph, null, 2));
   const gapsPath = path.join(store.surpryzeDir, 'testing-gaps.json');
@@ -82,6 +98,7 @@ export function buildAndPersistAssumptionGraph(
         testingGaps: graph.testingGaps,
         whatToTestNext: graph.agentBrief.whatToTestNext,
         coverageDisclaimer: graph.coverageDisclaimer,
+        explorationCoverage: graph.explorationCoverage,
         sfdotCoverage: graph.sfdotCoverage,
       },
       null,
@@ -89,8 +106,12 @@ export function buildAndPersistAssumptionGraph(
     ),
   );
   store.setMeta('testingGapsPath', gapsPath);
-  store.setMeta('assumptionGraphPath', jsonPath);
+  store.setMeta('assumptionGraphPath', graphPath);
+  store.setMeta('graphPath', graphPath);
   store.setMeta('assumptionGraphAt', graph.generatedAt);
+
+  writeAssumptionGraphHtml(graph, store.surpryzeDir);
+  writeAgentContext(store.surpryzeDir, graph);
 
   const root = projectRoot ?? path.dirname(path.dirname(store.surpryzeDir));
   const handoffPath = writeAgentHandoff(store.surpryzeDir, root, graph);
@@ -99,7 +120,11 @@ export function buildAndPersistAssumptionGraph(
   return graph;
 }
 
-export function assembleGraphView(store: KnowledgeStore, tests: ParsedTest[]): AssumptionGraph {
+export function assembleGraphView(
+  store: KnowledgeStore,
+  tests: ParsedTest[],
+  buildOptions: BuildGraphOptions = {},
+): AssumptionGraph {
   const assumptions = store.listAssumptions();
   const allEvidence = store.listAssumptionEvidence();
   const edges = store.listGraphEdges();
@@ -131,6 +156,7 @@ export function assembleGraphView(store: KnowledgeStore, tests: ParsedTest[]): A
 
     return {
       assumption,
+      assumptionKind: deriveAssumptionKind(assumption),
       evidence,
       contradictions,
       supportedByTests,
@@ -184,14 +210,18 @@ export function assembleGraphView(store: KnowledgeStore, tests: ParsedTest[]): A
   const assumptionsSummary = buildAssumptionsSummary(tests, assumptions);
   const testingGaps = analyzeTestingGaps(tests, assumptionViews);
   const sfdotCoverage = buildSfdotCoverage(tests);
+  const explorationCoverage = buildExplorationCoverage(tests);
   const whatToTestNext = testingGaps
     .filter((g) => g.priority === 'high')
     .slice(0, 8)
     .map((g) => g.suggestedTestIdeas[0] ?? g.reason);
 
+  const appSource = buildOptions.applicationSourceAvailable ?? false;
   const graph: AssumptionGraph = {
-    version: 1,
+    version: 2,
     generatedAt: new Date().toISOString(),
+    applicationSourceAvailable: appSource,
+    semanticAnalyzer: buildOptions.semanticAnalyzer,
     projectSummary: {
       testsAnalyzed: tests.length,
       assumptions: assumptions.length,
@@ -202,15 +232,18 @@ export function assembleGraphView(store: KnowledgeStore, tests: ParsedTest[]): A
     testingGaps,
     coverageDisclaimer: COVERAGE_DISCLAIMER,
     sfdotCoverage,
+    explorationCoverage,
     nodes,
     edges,
     assumptions: assumptionViews,
     weakAssumptionsFirst,
     agentBrief: {
       whatTestsBelieve: `The suite encodes ${assumptions.length} claims across ${tests.length} tests (${assumptions.filter((a) => a.claimPrecision === 'literal').length} with literal expected values).`,
-      whyTheyBelieveIt: `Claims are parsed from test structure (AST). ${allEvidence.filter((e) => e.evidenceKind === 'direct').length} direct evidence links tie tests/assertions to claims.`,
+      whyTheyBelieveIt: `Semantic analysis (${buildOptions.semanticAnalyzer ?? 'none'}) plus AST mining. ${allEvidence.filter((e) => e.evidenceKind === 'direct').length} direct evidence links tie tests/assertions to claims.`,
       fidelityNote:
-        'Structural extraction only: claimPrecision=literal means expected values were read from source; structural means matcher type without a static value; intent means title-only scenario text. confidence reflects evidence weight, not production correctness. Do not treat STRONG as a behavioral guarantee without literal oracles.',
+        'Assumptions combine LLM semantic interpretation with structural test parsing. claimPrecision=literal means expected values were read from source; structural means matcher type without a static value; intent means title-only or semantic inference. confidence is computed from evidence (directness, independence, contradictions)—not from LLM self-scores. Application source ' +
+        (appSource ? 'was available as optional evidence.' : 'was not provided—unknown behavior stays UNKNOWN, not "false".') +
+        ' Gaps are not automatic defects.',
       whatToTestNext,
       weakestAssumptions: weakest.map((w) => ({
         id: w.assumption.id,

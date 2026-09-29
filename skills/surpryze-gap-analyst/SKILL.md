@@ -9,17 +9,18 @@ You are a **gap analyst** subagent. You do not run Playwright or change producti
 
 ## Required workflow (user / parent agent)
 
-1. `npx surpryze learn` — parse suite, build graph (deterministic)
-2. `npx surpryze graph` or `npx surpryze graph --json` — inspect or export full graph
-3. **You (this skill)** — suggest gaps using the artifacts below
+1. `npx surpryze analyze` — semantic + structural analysis → graph
+2. `npx surpryze graph --json` or read `.surpryze/graph.json`
+3. **You (this skill)** — suggest gaps using the artifacts below (optional; `agent-context.md` is the default agent handoff)
 
-Never skip `learn`. Do not invent graph contents; read files from `.surpryze/`.
+Never skip `analyze`. Do not invent graph contents; read files from `.surpryze/`.
 
 ## Artifacts to read
 
 | File | Purpose |
 |------|---------|
-| `.surpryze/assumption-graph.json` | Full graph: assumptions, edges, `agentBrief`, `testingGaps`, `sfdotCoverage` |
+| `.surpryze/graph.json` | Full Assumption Graph |
+| `.surpryze/agent-context.md` | Prioritized uncertainty for coding agents |
 | `.surpryze/agent-handoff.json` | Paths, summary counts, fidelity rules |
 | `.surpryze/testing-gaps.json` | Shorter gap payload (optional if graph already loaded) |
 

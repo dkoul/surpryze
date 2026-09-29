@@ -44,7 +44,41 @@ export const GraphRelationSchema = z.enum([
   'evidence_for',
   'child_of',
   'related_to',
+  'challenged_by',
+  'addressed_by',
 ]);
+
+export const AssumptionKindSchema = z.enum([
+  'explicit',
+  'inferred',
+  'supported',
+  'weak',
+  'unknown',
+]);
+
+export const ExplorationDimensionSchema = z.enum([
+  'behavior',
+  'data',
+  'state',
+  'platform',
+  'operations',
+  'time',
+]);
+
+export const ExplorationDimensionCoverageSchema = z.object({
+  dimension: ExplorationDimensionSchema,
+  label: z.string(),
+  description: z.string(),
+  testsWithSignal: z.number(),
+  testsTotal: z.number(),
+  strength: z.enum(['strong', 'moderate', 'weak', 'absent']),
+  signals: z.array(z.string()),
+});
+
+export const ExplorationCoverageReportSchema = z.object({
+  dimensions: z.array(ExplorationDimensionCoverageSchema),
+  thinDimensions: z.array(ExplorationDimensionSchema),
+});
 
 export const ExplorationStrategySchema = z.enum([
   'boundary',
@@ -144,10 +178,12 @@ export const TestGapRecommendationSchema = z.object({
     'negative_path',
     'analysis_limit',
     'sfdot_lens',
+    'exploration_lens',
   ]),
   sfdotDimension: z
     .enum(['structure', 'function', 'data', 'platform', 'operations', 'time'])
     .optional(),
+  explorationDimension: ExplorationDimensionSchema.optional(),
 });
 
 export const SfdotDimensionCoverageSchema = z.object({
@@ -189,8 +225,10 @@ export const AssumptionsSummarySchema = z.object({
 });
 
 export const AssumptionGraphSchema = z.object({
-  version: z.literal(1),
+  version: z.union([z.literal(1), z.literal(2)]),
   generatedAt: z.string(),
+  applicationSourceAvailable: z.boolean().optional(),
+  semanticAnalyzer: z.string().optional(),
   projectSummary: z.object({
     testsAnalyzed: z.number(),
     assumptions: z.number(),
@@ -201,6 +239,7 @@ export const AssumptionGraphSchema = z.object({
   testingGaps: z.array(TestGapRecommendationSchema),
   coverageDisclaimer: z.string(),
   sfdotCoverage: SfdotCoverageReportSchema,
+  explorationCoverage: ExplorationCoverageReportSchema.optional(),
   nodes: z.array(
     z.object({
       id: z.string(),
@@ -213,6 +252,7 @@ export const AssumptionGraphSchema = z.object({
   assumptions: z.array(
     z.object({
       assumption: AssumptionSchema,
+      assumptionKind: AssumptionKindSchema.optional(),
       evidence: z.array(AssumptionEvidenceSchema),
       contradictions: z.array(AssumptionEvidenceSchema),
       supportedByTests: z.array(z.string()),
@@ -313,3 +353,5 @@ export type Observation = z.infer<typeof ObservationSchema>;
 export type Surprise = z.infer<typeof SurpriseSchema>;
 export type ParsedTest = z.infer<typeof ParsedTestSchema>;
 export type SurpryzeConfig = z.infer<typeof SurpryzeConfigSchema>;
+export type AssumptionKind = z.infer<typeof AssumptionKindSchema>;
+export type ExplorationCoverageReport = z.infer<typeof ExplorationCoverageReportSchema>;

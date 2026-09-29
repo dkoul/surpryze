@@ -323,7 +323,7 @@ export function analyzeTestingGaps(
     recs.push({
       id: sfdotGapId(['sfdot', dim.dimension]),
       priority,
-      reason: `SFDOT — ${dim.label}: ${dim.strength === 'absent' ? 'no clear signals' : 'weak signals'} in suite (${dim.testsWithSignal}/${dim.testsTotal} tests). ${SFDOT_LABELS[dim.dimension].description}`,
+      reason: `Exploration — ${dim.label}: ${dim.strength === 'absent' ? 'no clear signals' : 'weak signals'} in suite (${dim.testsWithSignal}/${dim.testsTotal} tests). ${SFDOT_LABELS[dim.dimension].description}`,
       relatedAssumptionIds: assumptions.slice(0, 3).map((a) => a.id),
       relatedTestIds: tests.slice(0, 5).map((t) => t.id),
       suggestedTestIdeas: sfdotGapSuggestions(dim.dimension),

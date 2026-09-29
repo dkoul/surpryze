@@ -8,7 +8,7 @@ import type {
 import type { ClaimPrecision } from '../knowledge/schemas.js';
 import { aggregateClaimPrecision, classifyEvidence, deriveConfidenceFromEvidence } from './confidence.js';
 import { assertionToBelief, precisionEvidenceWeight, titleToBelief } from './beliefs.js';
-import type { SemanticAssumptionProposal } from '../llm/semantic.js';
+import type { SemanticAssumptionProposal } from '../llm/semantic-types.js';
 
 export interface MinedAssumptionBundle {
   assumption: Assumption;

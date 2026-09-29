@@ -2,59 +2,46 @@
 
 **Assumption Graphs describe what teams believe software does.**
 
-Surpryze builds an **Assumption Graph** from an existing **Playwright** test repository—without requiring application source code. Semantic analysis (LLM when configured) plus structural parsing produces assumptions, evidence links, confidence, and gaps. Coding agents use the output to **increase evidence**, not to receive a blind “write more tests” mandate.
+Surpryze is a **Cursor / Claude Code skill** plus a small CLI engine. Playwright tests are parsed structurally; **the host agent (you) performs required semantic analysis**; the CLI merges proposals into an Assumption Graph with evidence-derived confidence and agent-ready artifacts.
 
-```bash
-npx surpryze init
-npx surpryze analyze    # full pipeline (primary)
-npx surpryze graph      # review in terminal
-npx surpryze context    # .surpryze/agent-context.md for Cursor / Claude Code
+## Install the skill
+
+Copy into your skills directory:
+
+```text
+.cursor/skills/surpryze/     ← from this repo: skills/surpryze/
 ```
 
-### Agent-first artifacts (`.surpryze/`)
-
-| File | Purpose |
-|------|---------|
-| `graph.json` | Machine-readable Assumption Graph |
-| `report.html` | Human-readable analysis |
-| `agent-context.md` | Compact uncertainty-focused context for coding agents |
-| `confidence-runs.json` | History for confidence deltas across runs |
-
-Set `OPENAI_API_KEY` or `SURPRYZE_LLM_API_KEY` for OpenAI semantic analysis; otherwise a local heuristic semantic pass runs (no API).
-
-`surpryze learn` is an alias for `surpryze analyze`.
-
-Product definition: [`docs/PRD.md`](docs/PRD.md).
-
----
-
-## Playwright repo at the project root
+Install the CLI in the Playwright repo:
 
 ```bash
-cd my-app
 npm install github:dkoul/surpryze --save-dev
 npx surpryze init
-npx surpryze analyze
 ```
 
-Add `.surpryze/` to `.gitignore`.
-
-### Focused agent context
+## Workflow (LLM required)
 
 ```bash
-npx surpryze context --assumption A-abc12345
-npx surpryze context --weakest 10
+npx surpryze prepare          # 1 — digest + AGENT-PROMPT.md
+# 2 — run the Surpryze skill in Cursor/Claude; agent writes .surpryze/semantic-proposals.json
+npx surpryze finalize         # 3 — graph.json, report.html, agent-context.md
 ```
 
-### After agents add tests
+`npx surpryze analyze` runs **finalize** when proposals exist; otherwise it runs **prepare** and exits with instructions to complete the skill.
 
-Re-run `surpryze analyze` and check confidence changes in the CLI output or `agent-context.md`.
+There is **no** heuristic-only analysis path. For CI, commit a proposals file or use `finalize --semantic-file path.json`. Optional `finalize --use-api` calls OpenAI when `OPENAI_API_KEY` is set (automation only, not the primary product).
 
----
+## Artifacts (`.surpryze/`)
 
-## Optional (not MVP-critical)
+| File | Role |
+|------|------|
+| `semantic-proposals.json` | **Required** agent output (semantic layer) |
+| `graph.json` | Assumption Graph |
+| `report.html` | Human report |
+| `agent-context.md` | Uncertainty context for coding agents |
 
-- `surpryze explore` — bounded experiments when the app is running  
-- `skills/surpryze-gap-analyst/` — optional gap-analyst skill on top of `graph.json`
+Product definition: [`docs/PRD.md`](docs/PRD.md) · Skill: [`skills/surpryze/SKILL.md`](skills/surpryze/SKILL.md)
 
-See [`docs/AGENT-WORKFLOW.md`](docs/AGENT-WORKFLOW.md) for agent integration notes.
+## After tests change
+
+`prepare` → update proposals in the skill → `finalize` → check confidence deltas in CLI or `agent-context.md`.

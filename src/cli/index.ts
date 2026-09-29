@@ -11,7 +11,9 @@ import {
 } from '../config.js';
 import { detectPlaywrightProject } from '../playwright/detect.js';
 import { runLearn } from '../services/learn.js';
-import { runAnalyze } from '../services/analyze.js';
+import { runPrepare } from '../services/prepare.js';
+import { runFinalize } from '../services/finalize.js';
+import { SemanticAnalysisRequiredError } from '../agent/semantic-task.js';
 import { buildAgentContextMarkdown, writeAgentContext } from '../agent/context.js';
 import { loadPreviousSnapshot, computeConfidenceDeltas } from '../knowledge/confidence-run.js';
 import { runExplorePipeline } from '../services/explore.js';
@@ -113,14 +115,65 @@ program
   });
 
 program
-  .command('analyze')
-  .description('Full pipeline: semantic analysis → Assumption Graph → report + agent context')
+  .command('prepare')
+  .description('Parse Playwright tests and write digest + agent prompt (step 1)')
   .option('--root <path>', 'Project root', process.cwd())
-  .option('--app-source', 'Application source repo is available as optional evidence')
-  .action(async (opts: { root: string; appSource?: boolean }) => {
+  .action(async (opts: { root: string }) => {
     const root = resolveProjectRoot(opts.root);
     const config = loadConfig(root);
-    await runAnalyze(config, { applicationSourceAvailable: opts.appSource ?? false });
+    await runPrepare(config);
+  });
+
+program
+  .command('finalize')
+  .description('Merge agent semantic proposals → graph, report, agent-context (step 3)')
+  .option('--root <path>', 'Project root', process.cwd())
+  .option('--semantic-file <path>', 'Path to semantic-proposals.json')
+  .option('--app-source', 'Application source was available to the agent')
+  .option('--use-api', 'CI only: call OpenAI API instead of agent proposals file')
+  .action(async (opts: { root: string; semanticFile?: string; appSource?: boolean; useApi?: boolean }) => {
+    const root = resolveProjectRoot(opts.root);
+    const config = loadConfig(root);
+    try {
+      await runFinalize(config, {
+        semanticFile: opts.semanticFile,
+        applicationSourceAvailable: opts.appSource ?? false,
+        useApi: opts.useApi ?? false,
+      });
+    } catch (e) {
+      if (e instanceof SemanticAnalysisRequiredError) {
+        console.error(e.message);
+        process.exit(1);
+      }
+      throw e;
+    }
+  });
+
+program
+  .command('analyze')
+  .description('prepare + finalize when proposals exist; else prepares and instructs skill')
+  .option('--root <path>', 'Project root', process.cwd())
+  .option('--semantic-file <path>', 'Path to semantic-proposals.json')
+  .option('--app-source', 'Application source repo is available as optional evidence')
+  .option('--use-api', 'CI only: OpenAI API semantic pass (not the Cursor/Claude skill path)')
+  .action(async (opts: { root: string; semanticFile?: string; appSource?: boolean; useApi?: boolean }) => {
+    const root = resolveProjectRoot(opts.root);
+    const config = loadConfig(root);
+    try {
+      await runFinalize(config, {
+        semanticFile: opts.semanticFile,
+        applicationSourceAvailable: opts.appSource ?? false,
+        useApi: opts.useApi ?? false,
+      });
+    } catch (e) {
+      if (e instanceof SemanticAnalysisRequiredError) {
+        await runPrepare(config);
+        console.error('');
+        console.error(e.message);
+        process.exit(1);
+      }
+      throw e;
+    }
   });
 
 program

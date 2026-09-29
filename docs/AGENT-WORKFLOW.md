@@ -1,31 +1,26 @@
 # Agent workflow
 
-## Primary flow
+Surpryze is a **Cursor / Claude Code skill**. The host LLM is **required** for semantic analysis.
+
+## Steps
 
 ```bash
-npx surpryze analyze
-npx surpryze graph          # optional terminal review
-npx surpryze context        # writes .surpryze/agent-context.md
+npx surpryze prepare
+# Invoke skill: skills/surpryze/SKILL.md — write .surpryze/semantic-proposals.json
+npx surpryze finalize
+npx surpryze context
 ```
-
-Give **`agent-context.md`** (or focused `surpryze context --weakest 10`) to **Cursor** or **Claude Code**. Ask the agent to increase **evidence** for listed assumptions—not to treat every gap as a bug.
 
 ## Artifacts
 
-| File | Use |
-|------|-----|
-| `graph.json` | Full graph, IDs, edges, gaps |
-| `agent-context.md` | Prioritized uncertainty and testing intents |
-| `report.html` | Human review |
-| `agent-handoff.json` | Paths and summary after analyze |
+| File | Producer |
+|------|----------|
+| `semantic-analysis/AGENT-PROMPT.md` | CLI (`prepare`) |
+| `semantic-proposals.json` | **Host agent (skill)** |
+| `graph.json`, `report.html`, `agent-context.md` | CLI (`finalize`) |
 
-## Rules for agents
+## Optional
 
-1. Honor `coverageDisclaimer` and `fidelityNote` in the graph.  
-2. Cite assumption (`A-…`), test (`T-…`), and gap (`GAP-…`) IDs.  
-3. Do not fabricate expected values outside `expectedLiterals` / assertions.  
-4. `UNKNOWN` is a valid outcome.
+`skills/surpryze-gap-analyst/` — extra gap suggestions after `finalize`.
 
-## Optional skill
-
-`skills/surpryze-gap-analyst/SKILL.md` adds structured gap suggestions on top of `graph.json`.
+`finalize --use-api` — OpenAI only for CI; not the primary product path.

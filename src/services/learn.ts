@@ -1,8 +1,8 @@
 import type { SurpryzeConfig } from '../knowledge/schemas.js';
-import { runAnalyze } from './analyze.js';
+import { runPrepare } from './prepare.js';
 
-/** @deprecated Use `surpryze analyze` — learn is an alias for the full analysis pipeline. */
+/** @deprecated Use prepare → Surpryze skill → finalize */
 export async function runLearn(config: SurpryzeConfig): Promise<void> {
-  console.log('Note: `surpryze learn` is an alias for `surpryze analyze`.');
-  await runAnalyze(config);
+  console.log('`surpryze learn` → `surpryze prepare` (semantic analysis is required via the Surpryze skill).');
+  await runPrepare(config);
 }

@@ -11,6 +11,9 @@ import {
 } from '../config.js';
 import { detectPlaywrightProject } from '../playwright/detect.js';
 import { runLearn } from '../services/learn.js';
+import { runAnalyze } from '../services/analyze.js';
+import { buildAgentContextMarkdown, writeAgentContext } from '../agent/context.js';
+import { loadPreviousSnapshot, computeConfidenceDeltas } from '../knowledge/confidence-run.js';
 import { runExplorePipeline } from '../services/explore.js';
 import { openDatabase } from '../knowledge/db.js';
 import { KnowledgeStore } from '../knowledge/store.js';
@@ -28,7 +31,7 @@ const program = new Command();
 
 program
   .name('surpryze')
-  .description('Playwright layer: surface test assumptions and where to add tests')
+  .description('Assumption Graph from Playwright tests — evidence, confidence, and agent context')
   .version('0.1.0');
 
 program
@@ -67,6 +70,7 @@ program
             whatToTestNext: graph.agentBrief.whatToTestNext,
             fidelityNote: graph.agentBrief.fidelityNote,
             coverageDisclaimer: graph.coverageDisclaimer,
+            explorationCoverage: graph.explorationCoverage,
             sfdotCoverage: graph.sfdotCoverage,
           },
           null,
@@ -82,7 +86,7 @@ program
   .command('graph')
   .description('Display the Assumption Graph (step 2: then use gap-analyst skill)')
   .option('--root <path>', 'Project root', process.cwd())
-  .option('--json', 'Print machine-readable assumption-graph.json to stdout')
+  .option('--json', 'Print machine-readable graph.json to stdout')
   .option('--no-gaps', 'Show assumption graph only (omit gaps + SFDOT summary)')
   .action((opts: { root: string; json?: boolean; noGaps?: boolean }) => {
     const root = resolveProjectRoot(opts.root);
@@ -109,8 +113,47 @@ program
   });
 
 program
+  .command('analyze')
+  .description('Full pipeline: semantic analysis → Assumption Graph → report + agent context')
+  .option('--root <path>', 'Project root', process.cwd())
+  .option('--app-source', 'Application source repo is available as optional evidence')
+  .action(async (opts: { root: string; appSource?: boolean }) => {
+    const root = resolveProjectRoot(opts.root);
+    const config = loadConfig(root);
+    await runAnalyze(config, { applicationSourceAvailable: opts.appSource ?? false });
+  });
+
+program
+  .command('context')
+  .description('Generate or print agent-ready context (uncertainty-focused)')
+  .option('--root <path>', 'Project root', process.cwd())
+  .option('--assumption <id>', 'Focus on one assumption e.g. A-abc12345')
+  .option('--weakest <n>', 'Include N weakest assumptions', '0')
+  .action((opts: { root: string; assumption?: string; weakest: string }) => {
+    const root = resolveProjectRoot(opts.root);
+    const config = loadConfig(root);
+    const store = new KnowledgeStore(openDatabase(config.surpryzeDir), config.surpryzeDir);
+    const tests = store.listTests();
+    const graph = loadAssumptionGraph(store, tests);
+    const weakestN = parseInt(opts.weakest, 10);
+    const previous = loadPreviousSnapshot(config.surpryzeDir);
+    const focused = Boolean(opts.assumption) || weakestN > 0;
+    const options = {
+      assumptionId: opts.assumption,
+      weakest: weakestN > 0 ? weakestN : focused ? undefined : 12,
+      confidenceDeltas: computeConfidenceDeltas(graph, previous),
+    };
+    if (focused) {
+      console.log(buildAgentContextMarkdown(graph, options));
+      return;
+    }
+    const out = writeAgentContext(config.surpryzeDir, graph, options);
+    console.log(`Wrote ${out}`);
+  });
+
+program
   .command('learn')
-  .description('Parse tests and build the Assumption Graph')
+  .description('Alias for surpryze analyze')
   .option('--root <path>', 'Project root', process.cwd())
   .action(async (opts: { root: string }) => {
     const root = resolveProjectRoot(opts.root);

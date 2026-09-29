@@ -9,11 +9,13 @@ function surpryzePackageRoot(): string {
 
 export interface AgentHandoff {
   version: 1;
-  workflow: ['learn', 'graph', 'surpryze-gap-analyst'];
+  workflow: ['analyze', 'graph', 'context'];
   generatedAt: string;
   projectRoot: string;
   artifacts: {
-    assumptionGraph: string;
+    graph: string;
+    reportHtml: string;
+    agentContext: string;
     testingGaps: string;
     knowledgeDb: string;
   };
@@ -28,7 +30,7 @@ export interface AgentHandoff {
     assumptions: number;
     edges: number;
     testingGaps: number;
-    thinSfdotDimensions: string[];
+    thinExplorationDimensions: string[];
     literalClaims: number;
     intentClaims: number;
   };
@@ -50,11 +52,13 @@ export function writeAgentHandoff(
 
   const payload: AgentHandoff = {
     version: 1,
-    workflow: ['learn', 'graph', 'surpryze-gap-analyst'],
+    workflow: ['analyze', 'graph', 'context'],
     generatedAt: graph.generatedAt,
     projectRoot,
     artifacts: {
-      assumptionGraph: path.join(surpryzeDir, 'assumption-graph.json'),
+      graph: path.join(surpryzeDir, 'graph.json'),
+      reportHtml: path.join(surpryzeDir, 'report.html'),
+      agentContext: path.join(surpryzeDir, 'agent-context.md'),
       testingGaps: path.join(surpryzeDir, 'testing-gaps.json'),
       knowledgeDb: path.join(surpryzeDir, 'knowledge.db'),
     },
@@ -70,7 +74,9 @@ export function writeAgentHandoff(
       assumptions: graph.projectSummary.assumptions,
       edges: graph.projectSummary.edges,
       testingGaps: graph.projectSummary.testingGaps,
-      thinSfdotDimensions: graph.sfdotCoverage.thinDimensions,
+      thinExplorationDimensions:
+        graph.explorationCoverage?.thinDimensions.map(String) ??
+        graph.sfdotCoverage.thinDimensions,
       literalClaims: graph.assumptionsSummary.literalClaims,
       intentClaims: graph.assumptionsSummary.intentClaims,
     },
@@ -80,9 +86,9 @@ export function writeAgentHandoff(
     },
     nextSteps: [
       'npx surpryze graph',
-      'npx surpryze graph --json  # full graph for agents',
-      `Open skill: ${skillRelative} (surpryze-gap-analyst)`,
-      'Gap analyst: read assumption-graph.json + agent-handoff.json; output grounded suggestions',
+      'npx surpryze graph --json',
+      'npx surpryze context  # agent-context.md for Cursor / Claude Code',
+      `Optional skill: ${skillRelative}`,
     ],
   };
 
@@ -93,9 +99,9 @@ export function writeAgentHandoff(
 export function formatLearnNextSteps(handoffPath: string): string {
   return [
     'Next steps:',
-    '  1. npx surpryze graph          # human-readable graph',
-    '  2. npx surpryze graph --json   # full payload for agents',
-    '  3. Gap analyst skill           # skills/surpryze-gap-analyst/SKILL.md',
+    '  1. npx surpryze graph          # terminal review',
+    '  2. npx surpryze context        # agent-context.md for coding agents',
+    '  3. Open .surpryze/report.html  # human report',
     `     Handoff: ${handoffPath}`,
   ].join('\n');
 }

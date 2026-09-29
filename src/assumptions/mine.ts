@@ -8,6 +8,7 @@ import type {
 import type { ClaimPrecision } from '../knowledge/schemas.js';
 import { aggregateClaimPrecision, classifyEvidence, deriveConfidenceFromEvidence } from './confidence.js';
 import { assertionToBelief, precisionEvidenceWeight, titleToBelief } from './beliefs.js';
+import type { SemanticAssumptionProposal } from '../llm/semantic.js';
 
 export interface MinedAssumptionBundle {
   assumption: Assumption;
@@ -165,7 +166,27 @@ function titleToCandidates(test: ParsedTest): Candidate[] {
   return out;
 }
 
-export function mineAssumptionGraph(tests: ParsedTest[]): MineResult {
+function semanticToCandidates(proposals: SemanticAssumptionProposal[]): Candidate[] {
+  const out: Candidate[] = [];
+  for (const p of proposals) {
+    out.push({
+      statement: p.statement,
+      feature: p.feature,
+      source: 'inferred',
+      testId: p.derivedFromTestIds[0],
+      evidenceKind: p.applicationBehaviorKnown ? 'indirect' : 'inferred',
+      linkKind: 'implicit',
+      claimPrecision: 'intent',
+      expectedLiterals: [],
+    });
+  }
+  return out;
+}
+
+export function mineAssumptionGraph(
+  tests: ParsedTest[],
+  options?: { semanticProposals?: SemanticAssumptionProposal[] },
+): MineResult {
   const now = new Date().toISOString();
   const testById = new Map(tests.map((t) => [t.id, t]));
   const byStatement = new Map<string, Candidate[]>();
@@ -177,6 +198,13 @@ export function mineAssumptionGraph(tests: ParsedTest[]): MineResult {
       list.push(c);
       byStatement.set(key, list);
     }
+  }
+
+  for (const c of semanticToCandidates(options?.semanticProposals ?? [])) {
+    const key = c.statement.trim().toLowerCase();
+    const existing = byStatement.get(key) ?? [];
+    existing.push(c);
+    byStatement.set(key, existing);
   }
 
   // Gap / untested assumptions

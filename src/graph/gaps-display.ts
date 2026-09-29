@@ -30,18 +30,21 @@ export function formatGapsReport(graph: AssumptionGraph): string {
   }
 
   lines.push('');
-  lines.push('## SFDOT coverage (heuristic lenses on the suite)');
+  const exploration = graph.explorationCoverage ?? graph.sfdotCoverage;
+  lines.push('## Exploration dimensions (coverage signals in the suite)');
   lines.push('');
-  for (const d of graph.sfdotCoverage.dimensions) {
+  for (const d of exploration.dimensions) {
+    const label = d.label;
     lines.push(
-      `  ${d.label.padEnd(12)} ${d.strength.padEnd(8)} ${d.testsWithSignal}/${d.testsTotal} tests — ${d.description.slice(0, 72)}…`,
+      `  ${label.padEnd(12)} ${d.strength.padEnd(8)} ${d.testsWithSignal}/${d.testsTotal} tests — ${d.description.slice(0, 72)}…`,
     );
   }
-  if (graph.sfdotCoverage.thinDimensions.length > 0) {
+  const thin =
+    graph.explorationCoverage?.thinDimensions ??
+    graph.sfdotCoverage.thinDimensions;
+  if (thin.length > 0) {
     lines.push('');
-    lines.push(
-      `  Thin dimensions: ${graph.sfdotCoverage.thinDimensions.join(', ')} (see SFDOT gaps below)`,
-    );
+    lines.push(`  Thin dimensions: ${thin.join(', ')}`);
   }
 
   lines.push('');

@@ -57,6 +57,6 @@ export function formatGraphReport(graph: AssumptionGraph): string {
   lines.push('');
   lines.push(`Note: ${graph.agentBrief.fidelityNote}`);
   lines.push('');
-  lines.push(`Full graph JSON: assumption-graph.json (${graph.generatedAt})`);
+  lines.push(`Full graph JSON: graph.json (${graph.generatedAt})`);
   return lines.join('\n');
 }

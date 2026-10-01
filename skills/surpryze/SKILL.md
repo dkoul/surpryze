@@ -50,15 +50,90 @@ Users invoke **two skill commands** (they give paths; you do the work). Do not a
 **What you do:**
 
 1. Run the toolkit gap matcher (see [Agent runtime](#agent-runtime)).
-2. Read `gap-analysis.json` and `gap-analysis.md`.
-3. **Semantically refine** heuristic matches using these lenses internally (never name external methodologies or acronyms):
-   - Structure, behavior, data, interaction, platform, operations, time
+2. Read `gap-analysis.json` and `gap-analysis.md`, especially **`explorationCoverage`** and **`explorationDimensionGaps`**.
+3. **Semantically refine** heuristic matches using [exploration dimensions](#exploration-dimensions-how-to-measure-gaps) (never cite external test-design methodologies or acronyms).
 4. Present:
-   - What is covered (which assumptions, which tests, how strong)
+   - The **exploration dimensions** table (strength + tests with signals per dimension)
+   - What is covered (assumption ids, test ids, match strength)
    - **Gaps** as missing **evidence**, not automatic production bugs
-   - Concrete suggestions grounded in assumption ids
+   - Per-dimension thin areas and which assumptions they affect
 
 **Success artifacts:** `gap-analysis.json`, `gap-analysis.md`.
+
+---
+
+## Exploration dimensions (how to measure gaps)
+
+The gap report includes `explorationCoverage.dimensions[]` with **Behavior, Data, State, Platform, Operations, Time**. Each row has `testsWithSignal` / `testsTotal`, `strength` (`strong` | `moderate` | `weak` | `absent`), and example signals.
+
+Use this checklist when **refining** matches and explaining gaps to the user:
+
+### Behavior
+
+**What it is:** Features, success paths, error handling, business rules the suite actually exercises.
+
+**Signals in tests:** Assertions on outcomes (`expect`, `should`), titles about success/failure/rejection, validation of visible results.
+
+**Examples:** “Invalid token shows error message”; “checkout completes with confirmation”; API success mocked and UI updates.
+
+**Gap means:** The app assumes a behavior (from the graph) but no test **proves** that outcome—or only happy path exists without error cases.
+
+### Data
+
+**What it is:** Inputs, outputs, formats, boundaries, invalid values, variation across scenarios.
+
+**Signals:** `fill`/`type` actions, literal oracles, titles mentioning invalid/empty/boundary/email/password/policy.
+
+**Examples:** Weak password rejected; empty email blocked; special characters in name field.
+
+**Gap means:** Assumption involves data rules but tests always use one “happy” payload or never assert invalid input handling.
+
+### State
+
+**What it is:** Routes, screens, navigation, modules, how UI regions connect.
+
+**Signals:** `goto`/`visit`, route paths in tests, multi-page flows, file paths suggesting feature areas.
+
+**Examples:** `/reset` loads form; navigation from home → settings → profile.
+
+**Gap means:** Graph assumes a route or surface exists; tests never navigate there or only hit one screen.
+
+### Platform
+
+**What it is:** HTTP/API usage, external services, environments, browser-specific behavior.
+
+**Signals:** `request`/`fetch`/`api` in tests, status codes, staging URLs, network mocks.
+
+**Examples:** 401 shows login; API error surfaces toast; webhook failure handled.
+
+**Gap means:** App calls an API (graph) but tests are UI-only with no contract/error coverage for that integration.
+
+### Operations
+
+**What it is:** End-to-end workflows, admin flows, realistic multi-step user journeys.
+
+**Signals:** Long action chains, describe nesting, journey/e2e/workflow language, 3+ interactions.
+
+**Examples:** Request reset → open email link → set password → login with new password.
+
+**Gap means:** Graph implies a full workflow; tests cover isolated steps only.
+
+### Time
+
+**What it is:** Expiry, timeouts, concurrency, double-submit, session lifetime.
+
+**Signals:** expired/wait/timeout/twice/concurrent/retry in titles or steps.
+
+**Examples:** Expired reset link rejected; double-click submit does not duplicate order.
+
+**Gap means:** App or graph implies time-dependent rules; tests never wait, expire, or repeat actions.
+
+### How to combine with the graph
+
+1. Read `explorationCoverage` — which dimensions are **thin** (`thinDimensions`) for the whole suite.
+2. For each assumption, check `explorationDimension` on matches and `explorationDimensionGaps`.
+3. Upgrade or downgrade `matchStrength` only with **semantic** justification (not keyword overlap alone).
+4. Recommend tests that add evidence in the **thin** dimensions for the **specific** assumption ids.
 
 ---
 

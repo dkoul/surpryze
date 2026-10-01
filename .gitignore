@@ -6,3 +6,9 @@ playwright-report/
 *.db
 *.db-wal
 *.db-shm
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.python-version

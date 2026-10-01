@@ -5,7 +5,7 @@ description: Two invocations — (1) scan React repo into an assumption graph, (
 
 # Surpryze
 
-Users invoke **two skill commands** (they give paths; you do the work). Do not ask them to run `pip`, `npm`, or `python` unless install failed and you are fixing the environment.
+Users invoke **two skill commands** (they give paths; you do the work). Do not ask them to run shell commands unless install failed and you are fixing the environment.
 
 ---
 
@@ -178,4 +178,4 @@ Working directory: any; use absolute paths for all arguments.
 
 - Two steps in order when both are needed: **scan-react** → **gap-analysis**.
 - Re-run scan-react after React changes; re-run gap-analysis after tests or graph change.
-- No npm / Node Surpryze CLI for this skill.
+- Surpryze is Python-only in this repository (`python/` package).

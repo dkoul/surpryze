@@ -1,68 +1,106 @@
 ---
 name: surpryze
-description: Claude/Cursor skill — build an Assumption Graph from a React app, then semantically match Playwright/Cypress/Selenium coverage. LLM steps are required.
+description: Two invocations — (1) scan React repo into an assumption graph, (2) gap analysis vs a UI test repo. You run the bundled Python scanner; users never type Python commands.
 ---
 
 # Surpryze
 
-Surpryze is a **Claude / Cursor skill** with a small CLI engine.
-
-1. **React (programmatic)** — `scan-app` builds the application assumption graph from source.
-2. **UI tests (agent)** — semantic coverage match against that graph using internal coverage lenses (structure, behavior, data, interaction, platform, operations, time). Do not cite external methodology names.
-
-Install: copy this folder to your Claude/Cursor skills directory. In the repo: `npm install surpryze --save-dev` and `npx surpryze init`.
+Users invoke **two skill commands** (they give paths; you do the work). Do not ask them to run `pip`, `npm`, or `python` unless install failed and you are fixing the environment.
 
 ---
 
-## Step 1 — Application graph (CLI)
+## Invocation 1: `surpryze scan-react`
 
-From the Surpryze project root (often the React monorepo root):
+**User intent:** Build an assumption graph from a React codebase.
 
-```bash
-npx surpryze init --app-root .          # or --tests-root ../e2e-repo
-npx surpryze scan-app
+**User argument (required):**
+
+- `react_repo` — absolute or workspace path to the React application root (contains `package.json` + `src` / `app`).
+
+**Optional:**
+
+- `output` — where to write the graph (default: `<react_repo>/assumption-graph.json`).
+
+**What you do:**
+
+1. Resolve `react_repo` on disk; confirm it looks like a React project.
+2. Run the toolkit scanner (see [Agent runtime](#agent-runtime) below). Write JSON to `output`.
+3. Read the graph and explain in plain language:
+   - What the app **assumes** (routes, APIs, forms, UI surfaces)
+   - Assumption ids (`A-…`) tied to **code provenance** only—do not invent behavior.
+4. Return the output file path to the user.
+
+**Success artifact:** `assumption-graph.json` (assumption graph).
+
+---
+
+## Invocation 2: `surpryze gap-analysis`
+
+**User intent:** See how well an existing UI test suite covers the assumption graph.
+
+**User arguments (required):**
+
+- `test_repo` — path to Playwright, Cypress, or Selenium tests (may be a **different repo** than the React app).
+- `assumption_graph` — path to `assumption-graph.json` from invocation 1.
+
+**Optional:**
+
+- `output` — gap report JSON path (default: same directory as `assumption_graph`, file `gap-analysis.json`).
+
+**What you do:**
+
+1. Run the toolkit gap matcher (see [Agent runtime](#agent-runtime)).
+2. Read `gap-analysis.json` and `gap-analysis.md`.
+3. **Semantically refine** heuristic matches using these lenses internally (never name external methodologies or acronyms):
+   - Structure, behavior, data, interaction, platform, operations, time
+4. Present:
+   - What is covered (which assumptions, which tests, how strong)
+   - **Gaps** as missing **evidence**, not automatic production bugs
+   - Concrete suggestions grounded in assumption ids
+
+**Success artifacts:** `gap-analysis.json`, `gap-analysis.md`.
+
+---
+
+## Agent runtime
+
+When executing either invocation, locate the Surpryze toolkit (this repo’s `python/` package). Prefer:
+
+```text
+<toolkit>/python  →  python3 -m surpryze scan|gap ...
 ```
 
-Outputs `.surpryze/graph.json` with assumptions from React (routes, API usage, forms, components). Review `report.html` if helpful.
+**Invocation 1 → internal command shape:**
 
-Optional: enrich assumptions in conversation (still cite code provenance)—then re-run `scan-app` after code changes.
-
----
-
-## Step 2 — UI test coverage (you, the agent)
-
-UI tests may live in the **same repo** or a **separate** Playwright/Cypress/Selenium repo.
-
-```bash
-npx surpryze match prepare --tests-root /path/to/ui-tests   # omit if co-located
+```text
+python3 -m surpryze scan <react_repo> -o <output>
 ```
 
-Read:
+**Invocation 2 → internal command shape:**
 
-- `.surpryze/coverage-match/AGENT-PROMPT.md`
-- `.surpryze/coverage-match/app-assumptions.json`
-- `.surpryze/coverage-match/ui-tests-digest.json`
-
-**You must** write `.surpryze/coverage-matches.json` (schema in the prompt). Semantically map each assumption `A-…` to test ids (`T-…`, `UT-…`). Use the coverage lens checklist in the prompt internally.
-
-```bash
-npx surpryze match finalize
+```text
+python3 -m surpryze gap <test_repo> <assumption_graph> -o <output>
 ```
 
-Then read `.surpryze/agent-context.md` and explain to the user:
+If `python3 -m surpryze` fails, `cd <toolkit>/python && pip install -e .` once, then retry. Users should not need to know this.
 
-- What the app assumes
-- What UI tests actually cover (and how strongly)
-- Where evidence is thin—**without** calling gaps automatic bugs
+Working directory: any; use absolute paths for all arguments.
 
 ---
 
-## Re-run
+## Example user phrases (map to invocations)
 
-After React or test changes: `scan-app` → `match prepare` → update matches → `match finalize`.
+| User says | Invocation |
+|-----------|------------|
+| “Scan my React app at …” | `surpryze scan-react` |
+| “Build assumption graph for …” | `surpryze scan-react` |
+| “Match e2e tests to the graph …” | `surpryze gap-analysis` |
+| “Gap analysis: tests in … graph at …” | `surpryze gap-analysis` |
 
 ---
 
-## Legacy commands
+## Rules
 
-`prepare` / `finalize` / `analyze` on **tests-only** graphs remain for older flows; the product default is **React first**, then UI match.
+- Two steps in order when both are needed: **scan-react** → **gap-analysis**.
+- Re-run scan-react after React changes; re-run gap-analysis after tests or graph change.
+- No npm / Node Surpryze CLI for this skill.

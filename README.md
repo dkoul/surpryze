@@ -39,7 +39,7 @@ Low confidence means **uncertainty**, not “defect.” The goal is to **reduce 
 
 ## Installation
 
-Surpryze runs as a **Claude or Cursor skill** (the agent runs the scanner; you do not install npm packages for day-to-day use).
+Surpryze runs as a **Claude or Cursor skill** (the agent runs the Python scanner in this repo).
 
 1. Clone or copy this repository.
 2. Install the skill in your editor:
@@ -68,7 +68,7 @@ Point at your **test repo** (same monorepo or another team’s repo) and the gra
 
 > Run gap analysis: UI tests in `/path/to/e2e`, assumption graph at `/path/to/assumption-graph.json`.
 
-You get `gap-analysis.json` and `gap-analysis.md`: what is covered, what is thin, and where more test evidence would help.
+You get `gap-analysis.json` and `gap-analysis.md`: what is covered, what is thin, exploration dimension coverage (behavior, data, state, platform, operations, time), and where more test evidence would help.
 
 ### Tips
 
@@ -85,6 +85,12 @@ You get `gap-analysis.json` and `gap-analysis.md`: what is covered, what is thin
 
 ---
 
+## Toolkit (for agents)
+
+Python CLI lives in [`python/`](python/). Optional local install: `make install` or `cd python && pip install -e .`
+
+Try the examples: `make demo-scan` then `make demo-gap`.
+
 ## More detail
 
-Agent behavior and invocation names: [`skills/surpryze/SKILL.md`](skills/surpryze/SKILL.md)
+[`skills/surpryze/SKILL.md`](skills/surpryze/SKILL.md)

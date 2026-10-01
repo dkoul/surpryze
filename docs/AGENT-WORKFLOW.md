@@ -1,26 +1,8 @@
 # Agent workflow
 
-Surpryze is a **Cursor / Claude Code skill**. The host LLM is **required** for semantic analysis.
+Users invoke the **surpryze** skill (two commands). You run the Python toolkit in `python/`.
 
-## Steps
+1. **scan-react** — React repo → `assumption-graph.json`
+2. **gap-analysis** — UI test repo + graph → `gap-analysis.json` / `.md`
 
-```bash
-npx surpryze prepare
-# Invoke skill: skills/surpryze/SKILL.md — write .surpryze/semantic-proposals.json
-npx surpryze finalize
-npx surpryze context
-```
-
-## Artifacts
-
-| File | Producer |
-|------|----------|
-| `semantic-analysis/AGENT-PROMPT.md` | CLI (`prepare`) |
-| `semantic-proposals.json` | **Host agent (skill)** |
-| `graph.json`, `report.html`, `agent-context.md` | CLI (`finalize`) |
-
-## Optional
-
-`skills/surpryze-gap-analyst/` — extra gap suggestions after `finalize`.
-
-`finalize --use-api` — OpenAI only for CI; not the primary product path.
+See [`skills/surpryze/SKILL.md`](../skills/surpryze/SKILL.md).

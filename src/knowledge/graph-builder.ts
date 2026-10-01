@@ -24,6 +24,11 @@ export interface BuildGraphOptions {
   semanticProposals?: SemanticAssumptionProposal[];
   semanticAnalyzer?: string;
   applicationSourceAvailable?: boolean;
+  graphOrigin?: 'application' | 'tests' | 'merged';
+  applicationSummary?: {
+    reactFilesScanned: number;
+    assumptionsFromCode: number;
+  };
 }
 
 function attachSurpriseContradictions(store: KnowledgeStore): void {
@@ -217,11 +222,18 @@ export function assembleGraphView(
     .map((g) => g.suggestedTestIdeas[0] ?? g.reason);
 
   const appSource = buildOptions.applicationSourceAvailable ?? false;
+  const origin = buildOptions.graphOrigin ?? (tests.length > 0 ? 'tests' : 'application');
+  const appAssumptions = assumptions.filter((a) => a.source === 'application').length;
   const graph: AssumptionGraph = {
     version: 2,
     generatedAt: new Date().toISOString(),
     applicationSourceAvailable: appSource,
     semanticAnalyzer: buildOptions.semanticAnalyzer,
+    graphOrigin: origin,
+    applicationSummary: buildOptions.applicationSummary ?? {
+      reactFilesScanned: 0,
+      assumptionsFromCode: appAssumptions,
+    },
     projectSummary: {
       testsAnalyzed: tests.length,
       assumptions: assumptions.length,
@@ -238,12 +250,22 @@ export function assembleGraphView(
     assumptions: assumptionViews,
     weakAssumptionsFirst,
     agentBrief: {
-      whatTestsBelieve: `The suite encodes ${assumptions.length} claims across ${tests.length} tests (${assumptions.filter((a) => a.claimPrecision === 'literal').length} with literal expected values).`,
-      whyTheyBelieveIt: `Agent semantic proposals (${buildOptions.semanticAnalyzer ?? 'required'}) plus AST mining. ${allEvidence.filter((e) => e.evidenceKind === 'direct').length} direct evidence links tie tests/assertions to claims.`,
+      whatTestsBelieve:
+        origin === 'application' || origin === 'merged'
+          ? `The application graph has ${assumptions.length} assumptions from React code${tests.length ? `; ${tests.length} UI tests indexed for coverage` : ''}.`
+          : `The suite encodes ${assumptions.length} claims across ${tests.length} tests (${assumptions.filter((a) => a.claimPrecision === 'literal').length} with literal expected values).`,
+      whyTheyBelieveIt:
+        origin === 'application'
+          ? `Programmatic React scan (${buildOptions.semanticAnalyzer ?? 'react-scan'}). ${allEvidence.filter((e) => e.refKind === 'code').length} code provenance links.`
+          : origin === 'merged'
+            ? `React scan + semantic UI test coverage match (${buildOptions.semanticAnalyzer ?? 'coverage-match'}).`
+            : `Agent semantic proposals (${buildOptions.semanticAnalyzer ?? 'required'}) plus AST mining. ${allEvidence.filter((e) => e.evidenceKind === 'direct').length} direct evidence links tie tests/assertions to claims.`,
       fidelityNote:
-        'Assumptions combine LLM semantic interpretation with structural test parsing. claimPrecision=literal means expected values were read from source; structural means matcher type without a static value; intent means title-only or semantic inference. confidence is computed from evidence (directness, independence, contradictions)—not from LLM self-scores. Application source ' +
-        (appSource ? 'was available as optional evidence.' : 'was not provided—unknown behavior stays UNKNOWN, not "false".') +
-        ' Gaps are not automatic defects.',
+        origin === 'merged'
+          ? 'Application assumptions come from React structure; UI test links are agent-matched semantically using internal coverage lenses. confidence is evidence-derived. Coverage gaps are not automatic defects.'
+          : origin === 'application'
+            ? 'Assumptions are mined from React source (routes, API calls, forms, components). UI coverage is unknown until `match prepare` + agent match + `match finalize`.'
+            : 'Assumptions combine LLM semantic interpretation with structural test parsing. confidence is evidence-derived—not LLM scores. Gaps are not automatic defects.',
       whatToTestNext,
       weakestAssumptions: weakest.map((w) => ({
         id: w.assumption.id,

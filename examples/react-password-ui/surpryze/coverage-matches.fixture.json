@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "generatedBy": "fixture",
+  "generatedAt": "2026-01-01T00:00:00.000Z",
+  "uiTestFramework": "Playwright",
+  "uiTestsRoot": "examples/password-reset-suite",
+  "matches": [
+    {
+      "assumptionId": "PLACEHOLDER",
+      "testIds": [],
+      "matchStrength": "moderate",
+      "coverageLens": "function",
+      "rationale": "Replace assumptionId after scan-app with ids from graph.json"
+    }
+  ]
+}

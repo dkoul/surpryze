@@ -1,47 +1,39 @@
 # Surpryze
 
-**Assumption Graphs describe what teams believe software does.**
+**Assumption Graph from your React app, matched to UI tests—with a Claude/Cursor skill.**
 
-Surpryze is a **Cursor / Claude Code skill** plus a small CLI engine. Playwright tests are parsed structurally; **the host agent (you) performs required semantic analysis**; the CLI merges proposals into an Assumption Graph with evidence-derived confidence and agent-ready artifacts.
+| Step | Who | What |
+|------|-----|------|
+| 1 | CLI | `scan-app` — programmatic React scan → assumption graph |
+| 2 | **Claude/Cursor skill** | Semantic match Playwright / Cypress / Selenium tests to the graph |
+| 3 | CLI | `match finalize` — evidence, confidence, `agent-context.md` |
 
-## Install the skill
-
-Copy into your skills directory:
-
-```text
-.cursor/skills/surpryze/     ← from this repo: skills/surpryze/
-```
-
-Install the CLI in the Playwright repo:
+## Install
 
 ```bash
 npm install github:dkoul/surpryze --save-dev
-npx surpryze init
 ```
 
-## Workflow (LLM required)
+Copy **`skills/surpryze/`** into your Claude/Cursor skills directory.
 
 ```bash
-npx surpryze prepare          # 1 — digest + AGENT-PROMPT.md
-# 2 — run the Surpryze skill in Cursor/Claude; agent writes .surpryze/semantic-proposals.json
-npx surpryze finalize         # 3 — graph.json, report.html, agent-context.md
+npx surpryze init --app-root .                    # React repo
+npx surpryze init --tests-root ../ui-test-repo    # optional separate test repo
+npx surpryze scan-app
+npx surpryze match prepare --tests-root ../ui-test-repo
+# → run skill → write .surpryze/coverage-matches.json
+npx surpryze match finalize
 ```
 
-`npx surpryze analyze` runs **finalize** when proposals exist; otherwise it runs **prepare** and exits with instructions to complete the skill.
+## Artifacts
 
-There is **no** heuristic-only analysis path. For CI, commit a proposals file or use `finalize --semantic-file path.json`. Optional `finalize --use-api` calls OpenAI when `OPENAI_API_KEY` is set (automation only, not the primary product).
-
-## Artifacts (`.surpryze/`)
-
-| File | Role |
+| File | Step |
 |------|------|
-| `semantic-proposals.json` | **Required** agent output (semantic layer) |
-| `graph.json` | Assumption Graph |
-| `report.html` | Human report |
-| `agent-context.md` | Uncertainty context for coding agents |
+| `graph.json` | After `scan-app` (and updated after `match finalize`) |
+| `coverage-match/AGENT-PROMPT.md` | After `match prepare` |
+| `coverage-matches.json` | **Agent required** |
+| `agent-context.md` | After `match finalize` |
 
-Product definition: [`docs/PRD.md`](docs/PRD.md) · Skill: [`skills/surpryze/SKILL.md`](skills/surpryze/SKILL.md)
+UI tests can live in the application repo or another team's repo—point `--tests-root` at the test codebase.
 
-## After tests change
-
-`prepare` → update proposals in the skill → `finalize` → check confidence deltas in CLI or `agent-context.md`.
+Skill: [`skills/surpryze/SKILL.md`](skills/surpryze/SKILL.md)

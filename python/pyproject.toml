@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "surpryze"
+version = "0.2.0"
+description = "React assumption graph and UI test gap analysis (CLI for Claude/Cursor skill)"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = []
+
+[project.scripts]
+surpryze = "surpryze.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["surpryze*"]

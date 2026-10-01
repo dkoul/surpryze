@@ -1,39 +1,37 @@
 # Surpryze
 
-**Assumption Graph from your React app, matched to UI tests—with a Claude/Cursor skill.**
+**Claude/Cursor skill** + **Python CLI** (no npm required).
 
-| Step | Who | What |
-|------|-----|------|
-| 1 | CLI | `scan-app` — programmatic React scan → assumption graph |
-| 2 | **Claude/Cursor skill** | Semantic match Playwright / Cypress / Selenium tests to the graph |
-| 3 | CLI | `match finalize` — evidence, confidence, `agent-context.md` |
+| Skill command | CLI | Arguments |
+|---------------|-----|-----------|
+| **1** | `surpryze scan` | React repo → `assumption-graph.json` |
+| **2** | `surpryze gap` | Test repo + graph file → `gap-analysis.json` / `.md` |
 
-## Install
-
-```bash
-npm install github:dkoul/surpryze --save-dev
-```
-
-Copy **`skills/surpryze/`** into your Claude/Cursor skills directory.
+## Python CLI
 
 ```bash
-npx surpryze init --app-root .                    # React repo
-npx surpryze init --tests-root ../ui-test-repo    # optional separate test repo
-npx surpryze scan-app
-npx surpryze match prepare --tests-root ../ui-test-repo
-# → run skill → write .surpryze/coverage-matches.json
-npx surpryze match finalize
+cd python
+pip install -e .
+
+surpryze scan /path/to/react-app -o assumption-graph.json
+surpryze gap /path/to/ui-tests assumption-graph.json -o gap-analysis.json
 ```
 
-## Artifacts
+- **Command 1:** programmatic React scan (routes, APIs, forms, components).
+- **Command 2:** digest Playwright / Cypress / Selenium tests, heuristic match + gap report; the skill agent refines matches semantically.
 
-| File | Step |
-|------|------|
-| `graph.json` | After `scan-app` (and updated after `match finalize`) |
-| `coverage-match/AGENT-PROMPT.md` | After `match prepare` |
-| `coverage-matches.json` | **Agent required** |
-| `agent-context.md` | After `match finalize` |
+## Skill
 
-UI tests can live in the application repo or another team's repo—point `--tests-root` at the test codebase.
+Install [`skills/surpryze/SKILL.md`](skills/surpryze/SKILL.md) in Claude/Cursor.
 
-Skill: [`skills/surpryze/SKILL.md`](skills/surpryze/SKILL.md)
+## Demo
+
+```bash
+pip install -e python
+surpryze scan examples/react-password-ui -o /tmp/graph.json
+surpryze gap examples/password-reset-suite /tmp/graph.json -o /tmp/gaps.json
+```
+
+## Legacy Node CLI
+
+The `npm` / TypeScript CLI in the repo root is **legacy** and not required for the skill.

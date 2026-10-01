@@ -1,0 +1,2 @@
+[console_scripts]
+surpryze = surpryze.cli:main

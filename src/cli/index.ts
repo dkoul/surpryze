@@ -28,28 +28,81 @@ import { loadAssumptionGraph } from '../knowledge/graph-builder.js';
 import { formatGraphReport } from '../graph/display.js';
 import { formatGapsReport } from '../graph/gaps-display.js';
 import { formatLearnNextSteps } from '../agent/handoff.js';
+import { runScanApp } from '../services/scan-app.js';
+import { runMatchPrepare } from '../services/match-prepare.js';
+import { runMatchFinalize } from '../services/match-finalize.js';
+import { detectReactProject } from '../react/detect.js';
 
 const program = new Command();
 
 program
   .name('surpryze')
-  .description('Assumption Graph from Playwright tests — evidence, confidence, and agent context')
+  .description('React assumption graph + semantic UI test coverage (Claude/Cursor skill)')
   .version('0.1.0');
 
 program
   .command('init')
-  .description('Detect Playwright project and initialize Surpryze')
+  .description('Initialize Surpryze for a React app (and optional co-located UI tests)')
   .option('--root <path>', 'Project root', process.cwd())
-  .action((opts: { root: string }) => {
+  .option('--app-root <path>', 'React application root if different from --root')
+  .option('--tests-root <path>', 'UI test repo root if separate from app')
+  .action((opts: { root: string; appRoot?: string; testsRoot?: string }) => {
     const root = resolveProjectRoot(opts.root);
-    const info = detectPlaywrightProject(root);
+    const appRoot = opts.appRoot ? path.resolve(opts.appRoot) : root;
+    const react = detectReactProject(appRoot);
     const config = defaultConfig(root);
-    config.playwrightConfig = info.playwrightConfig ?? undefined;
-    config.testDir = info.testDir;
+    config.applicationRoot = appRoot;
+    if (opts.testsRoot) config.uiTestsRoot = path.resolve(opts.testsRoot);
+    const pw = detectPlaywrightProject(opts.testsRoot ? path.resolve(opts.testsRoot) : root);
+    config.playwrightConfig = pw.playwrightConfig ?? undefined;
+    config.testDir = pw.testDir;
     saveConfig(config);
     fs.mkdirSync(path.join(config.surpryzeDir, 'experiments'), { recursive: true });
     console.log(`Initialized Surpryze at ${surpryzeDir(root)}`);
-    console.log(`Detected ${info.testFiles.length} test files`);
+    if (react) {
+      console.log(`React app: ${react.sourceFiles.length} source files under ${appRoot}`);
+    } else {
+      console.warn(`Warning: no React app detected at ${appRoot}`);
+    }
+    if (pw.testFiles.length > 0) {
+      console.log(`Co-located UI tests: ${pw.testFiles.length} Playwright files`);
+    } else if (config.uiTestsRoot) {
+      console.log(`UI tests root: ${config.uiTestsRoot}`);
+    }
+  });
+
+program
+  .command('scan-app')
+  .description('Step 1: programmatic React scan → application assumption graph')
+  .option('--root <path>', 'Surpryze project root', process.cwd())
+  .action(async (opts: { root: string }) => {
+    const root = resolveProjectRoot(opts.root);
+    const config = loadConfig(root);
+    await runScanApp(config);
+  });
+
+const match = program.command('match').description('Step 2: UI test coverage vs application graph (agent required)');
+
+match
+  .command('prepare')
+  .description('Digest Playwright/Cypress/Selenium tests + agent prompt')
+  .option('--root <path>', 'Surpryze project root', process.cwd())
+  .option('--tests-root <path>', 'UI test codebase root (default: config uiTestsRoot or project root)')
+  .action(async (opts: { root: string; testsRoot?: string }) => {
+    const root = resolveProjectRoot(opts.root);
+    const config = loadConfig(root);
+    await runMatchPrepare(config, opts.testsRoot);
+  });
+
+match
+  .command('finalize')
+  .description('Apply agent coverage-matches.json to the graph')
+  .option('--root <path>', 'Surpryze project root', process.cwd())
+  .option('--matches-file <path>', 'Path to coverage-matches.json')
+  .action(async (opts: { root: string; matchesFile?: string }) => {
+    const root = resolveProjectRoot(opts.root);
+    const config = loadConfig(root);
+    await runMatchFinalize(config, opts.matchesFile);
   });
 
 program

@@ -1,0 +1,9 @@
+{
+  "name": "react-password-ui",
+  "private": true,
+  "dependencies": {
+    "react": "^18.3.0",
+    "react-dom": "^18.3.0",
+    "react-router-dom": "^6.28.0"
+  }
+}

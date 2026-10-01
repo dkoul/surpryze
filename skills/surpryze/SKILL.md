@@ -1,110 +1,68 @@
 ---
 name: surpryze
-description: Build an Assumption Graph from Playwright tests. You (the host LLM) perform required semantic analysis; the CLI handles parsing, evidence, confidence, and artifacts for Cursor/Claude Code.
+description: Claude/Cursor skill — build an Assumption Graph from a React app, then semantically match Playwright/Cypress/Selenium coverage. LLM steps are required.
 ---
 
-# Surpryze (Cursor / Claude Code skill)
+# Surpryze
 
-Surpryze is **not** a standalone CLI product without you. The CLI parses tests and computes evidence; **you** provide mandatory semantic understanding of what the suite believes about the application.
+Surpryze is a **Claude / Cursor skill** with a small CLI engine.
 
-## Install
+1. **React (programmatic)** — `scan-app` builds the application assumption graph from source.
+2. **UI tests (agent)** — semantic coverage match against that graph using internal coverage lenses (structure, behavior, data, interaction, platform, operations, time). Do not cite external methodology names.
 
-Copy this folder into the project or user skills path:
+Install: copy this folder to your Claude/Cursor skills directory. In the repo: `npm install surpryze --save-dev` and `npx surpryze init`.
 
-```text
-.cursor/skills/surpryze/SKILL.md    # Cursor
-# or Claude Code equivalent skills directory
-```
+---
 
-Install the engine in the Playwright repo:
+## Step 1 — Application graph (CLI)
 
-```bash
-npm install github:dkoul/surpryze --save-dev
-npx surpryze init
-```
-
-## Workflow (always follow)
-
-### 1. Prepare (deterministic)
+From the Surpryze project root (often the React monorepo root):
 
 ```bash
-npx surpryze prepare
+npx surpryze init --app-root .          # or --tests-root ../e2e-repo
+npx surpryze scan-app
+```
+
+Outputs `.surpryze/graph.json` with assumptions from React (routes, API usage, forms, components). Review `report.html` if helpful.
+
+Optional: enrich assumptions in conversation (still cite code provenance)—then re-run `scan-app` after code changes.
+
+---
+
+## Step 2 — UI test coverage (you, the agent)
+
+UI tests may live in the **same repo** or a **separate** Playwright/Cypress/Selenium repo.
+
+```bash
+npx surpryze match prepare --tests-root /path/to/ui-tests   # omit if co-located
 ```
 
 Read:
 
-- `.surpryze/semantic-analysis/tests-digest.json`
-- `.surpryze/semantic-analysis/AGENT-PROMPT.md`
+- `.surpryze/coverage-match/AGENT-PROMPT.md`
+- `.surpryze/coverage-match/app-assumptions.json`
+- `.surpryze/coverage-match/ui-tests-digest.json`
 
-### 2. Semantic analysis (you — required)
-
-Infer assumptions the tests encode about **application behavior**, not just assertion syntax.
-
-Write **`.surpryze/semantic-proposals.json`**:
-
-```json
-{
-  "version": 1,
-  "generatedBy": "cursor",
-  "generatedAt": "2026-01-01T00:00:00.000Z",
-  "assumptions": [
-    {
-      "statement": "…",
-      "feature": "optional",
-      "rationale": "…",
-      "derivedFromTestIds": ["T-…"],
-      "applicationBehaviorKnown": false
-    }
-  ]
-}
-```
-
-Rules:
-
-- **No confidence scores** — Surpryze derives confidence from evidence.
-- Every assumption links to `derivedFromTestIds` from the digest.
-- If app source is unavailable, use `applicationBehaviorKnown: false` rather than guessing production truth.
-- Absence of evidence ≠ evidence of falsehood; use `unknown` style rationale when appropriate.
-
-Optional: user may attach OpenAPI, requirements, or app docs — cite them in `rationale` only; do not invent oracles.
-
-### 3. Finalize (deterministic)
+**You must** write `.surpryze/coverage-matches.json` (schema in the prompt). Semantically map each assumption `A-…` to test ids (`T-…`, `UT-…`). Use the coverage lens checklist in the prompt internally.
 
 ```bash
-npx surpryze finalize
+npx surpryze match finalize
 ```
 
-Produces:
+Then read `.surpryze/agent-context.md` and explain to the user:
 
-| Artifact | Purpose |
-|----------|---------|
-| `.surpryze/graph.json` | Assumption Graph |
-| `.surpryze/report.html` | Human report |
-| `.surpryze/agent-context.md` | Uncertainty-focused context for **further** coding work |
+- What the app assumes
+- What UI tests actually cover (and how strongly)
+- Where evidence is thin—**without** calling gaps automatic bugs
 
-### 4. Explain to the user
+---
 
-Summarize from `agent-context.md`:
+## Re-run
 
-- What the suite **believes** and why
-- Weakest / unknown assumptions
-- What **evidence** would increase confidence (not “bugs” by default)
+After React or test changes: `scan-app` → `match prepare` → update matches → `match finalize`.
 
-## Commands reference
+---
 
-```bash
-npx surpryze graph
-npx surpryze context
-npx surpryze context --weakest 10
-npx surpryze context --assumption A-xxxxxxxx
-```
+## Legacy commands
 
-## Re-run after test changes
-
-`prepare` → update `semantic-proposals.json` → `finalize`. Mention confidence deltas when `confidence-runs.json` shows movement.
-
-## What you are not doing
-
-- Not replacing Playwright or generating tests unless the user asks
-- Not treating low confidence as automatic defects
-- Not skipping semantic analysis (no heuristic-only graph)
+`prepare` / `finalize` / `analyze` on **tests-only** graphs remain for older flows; the product default is **React first**, then UI match.

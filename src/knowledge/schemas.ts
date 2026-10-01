@@ -12,6 +12,7 @@ export const ResultStateSchema = z.enum([
 export const AssumptionSourceSchema = z.enum([
   'requirement',
   'test',
+  'application',
   'inferred',
   'experiment',
   'human',
@@ -229,6 +230,13 @@ export const AssumptionGraphSchema = z.object({
   generatedAt: z.string(),
   applicationSourceAvailable: z.boolean().optional(),
   semanticAnalyzer: z.string().optional(),
+  graphOrigin: z.enum(['application', 'tests', 'merged']).optional(),
+  applicationSummary: z
+    .object({
+      reactFilesScanned: z.number(),
+      assumptionsFromCode: z.number(),
+    })
+    .optional(),
   projectSummary: z.object({
     testsAnalyzed: z.number(),
     assumptions: z.number(),
@@ -329,6 +337,9 @@ export const InvestigationClassificationSchema = z.enum([
 export const SurpryzeConfigSchema = z.object({
   version: z.literal(1),
   projectRoot: z.string(),
+  applicationRoot: z.string().optional(),
+  reactSourceDirs: z.array(z.string()).optional(),
+  uiTestsRoot: z.string().optional(),
   playwrightConfig: z.string().optional(),
   testDir: z.string().optional(),
   surpryzeDir: z.string(),

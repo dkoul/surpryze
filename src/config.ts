@@ -34,6 +34,7 @@ export function defaultConfig(root: string): SurpryzeConfig {
   return SurpryzeConfigSchema.parse({
     version: 1,
     projectRoot: root,
+    applicationRoot: root,
     surpryzeDir: surpryzeDir(root),
     defaultExploreBudget: 20,
     maxConcurrency: 2,

@@ -1,94 +1,106 @@
 ---
 name: surpryze
-description: Two-command Claude skill — (1) scan React repo to assumption graph JSON, (2) gap analysis vs UI test repo. Uses Python CLI only; no npm.
+description: Two invocations — (1) scan React repo into an assumption graph, (2) gap analysis vs a UI test repo. You run the bundled Python scanner; users never type Python commands.
 ---
 
 # Surpryze
 
-Two **skill commands**. Each command runs the Python CLI, then you (the agent) interpret results for the user.
-
-## Setup (once per machine)
-
-From the Surpryze toolkit checkout:
-
-```bash
-cd python && pip install -e .
-```
-
-Or without install:
-
-```bash
-export SURPRYZE_PY=/path/to/surpryze/python
-python3 -m surpryze --help   # run with cwd=$SURPRYZE_PY or PYTHONPATH=$SURPRYZE_PY
-```
+Users invoke **two skill commands** (they give paths; you do the work). Do not ask them to run `pip`, `npm`, or `python` unless install failed and you are fixing the environment.
 
 ---
 
-## Skill command 1 — React assumption graph
+## Invocation 1: `surpryze scan-react`
 
-**Argument:** path to the **React application repository**.
+**User intent:** Build an assumption graph from a React codebase.
 
-```bash
-surpryze scan <react_repo> -o <assumption-graph.json>
-```
+**User argument (required):**
 
-Example:
+- `react_repo` — absolute or workspace path to the React application root (contains `package.json` + `src` / `app`).
 
-```bash
-surpryze scan /workspace/my-react-app -o ./assumption-graph.json
-```
+**Optional:**
 
-**You must:**
+- `output` — where to write the graph (default: `<react_repo>/assumption-graph.json`).
 
-1. Run the command above (fix paths for the user’s machine).
-2. Read the generated JSON and summarize what the application **assumes** (routes, APIs, forms, UI surfaces).
-3. Cite assumption ids (`A-…`) and code provenance from the file.
+**What you do:**
 
-Output is **programmatic** from source; do not invent behaviors not supported by provenance.
+1. Resolve `react_repo` on disk; confirm it looks like a React project.
+2. Run the toolkit scanner (see [Agent runtime](#agent-runtime) below). Write JSON to `output`.
+3. Read the graph and explain in plain language:
+   - What the app **assumes** (routes, APIs, forms, UI surfaces)
+   - Assumption ids (`A-…`) tied to **code provenance** only—do not invent behavior.
+4. Return the output file path to the user.
+
+**Success artifact:** `assumption-graph.json` (assumption graph).
 
 ---
 
-## Skill command 2 — Gap analysis (UI tests vs graph)
+## Invocation 2: `surpryze gap-analysis`
 
-**Arguments:** path to **UI test repository**, path to **assumption graph file** from command 1.
+**User intent:** See how well an existing UI test suite covers the assumption graph.
 
-```bash
-surpryze gap <test_repo> <assumption-graph.json> -o <gap-analysis.json>
-```
+**User arguments (required):**
 
-Example:
+- `test_repo` — path to Playwright, Cypress, or Selenium tests (may be a **different repo** than the React app).
+- `assumption_graph` — path to `assumption-graph.json` from invocation 1.
 
-```bash
-surpryze gap /workspace/e2e-playwright ./assumption-graph.json -o ./gap-analysis.json
-```
+**Optional:**
 
-Also writes `gap-analysis.md` next to the JSON.
+- `output` — gap report JSON path (default: same directory as `assumption_graph`, file `gap-analysis.json`).
 
-**You must:**
+**What you do:**
 
-1. Run the command (Playwright, Cypress, or Selenium tests are auto-detected).
+1. Run the toolkit gap matcher (see [Agent runtime](#agent-runtime)).
 2. Read `gap-analysis.json` and `gap-analysis.md`.
-3. **Semantically refine** the heuristic matches using internal coverage lenses:
-   - Structure, behavior, data, interaction, platform, operations, time  
-   (Do not name any external test-design methodology or acronym.)
-4. Explain gaps as **missing evidence**, not automatic bugs.
-5. For each high-priority gap, suggest what kind of test evidence would increase confidence (grounded in assumption ids).
+3. **Semantically refine** heuristic matches using these lenses internally (never name external methodologies or acronyms):
+   - Structure, behavior, data, interaction, platform, operations, time
+4. Present:
+   - What is covered (which assumptions, which tests, how strong)
+   - **Gaps** as missing **evidence**, not automatic production bugs
+   - Concrete suggestions grounded in assumption ids
+
+**Success artifacts:** `gap-analysis.json`, `gap-analysis.md`.
 
 ---
 
-## Workflow
+## Agent runtime
+
+When executing either invocation, locate the Surpryze toolkit (this repo’s `python/` package). Prefer:
 
 ```text
-Command 1: react_repo  → assumption-graph.json
-Command 2: test_repo + assumption-graph.json → gap-analysis.json + gap-analysis.md
+<toolkit>/python  →  python3 -m surpryze scan|gap ...
 ```
 
-Re-run command 1 after React changes; re-run command 2 after test or graph changes.
+**Invocation 1 → internal command shape:**
+
+```text
+python3 -m surpryze scan <react_repo> -o <output>
+```
+
+**Invocation 2 → internal command shape:**
+
+```text
+python3 -m surpryze gap <test_repo> <assumption_graph> -o <output>
+```
+
+If `python3 -m surpryze` fails, `cd <toolkit>/python && pip install -e .` once, then retry. Users should not need to know this.
+
+Working directory: any; use absolute paths for all arguments.
 
 ---
 
-## What you are not doing
+## Example user phrases (map to invocations)
 
-- Not using npm / `npx surpryze` (deprecated for this skill).
-- Not replacing the user’s test framework.
-- Not treating weak coverage as a production defect by default.
+| User says | Invocation |
+|-----------|------------|
+| “Scan my React app at …” | `surpryze scan-react` |
+| “Build assumption graph for …” | `surpryze scan-react` |
+| “Match e2e tests to the graph …” | `surpryze gap-analysis` |
+| “Gap analysis: tests in … graph at …” | `surpryze gap-analysis` |
+
+---
+
+## Rules
+
+- Two steps in order when both are needed: **scan-react** → **gap-analysis**.
+- Re-run scan-react after React changes; re-run gap-analysis after tests or graph change.
+- No npm / Node Surpryze CLI for this skill.

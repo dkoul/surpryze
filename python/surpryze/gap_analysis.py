@@ -6,6 +6,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from surpryze.exploration_dimensions import (
+    DIMENSION_META,
+    build_exploration_coverage,
+    dimension_gaps_for_assumptions,
+    map_assumption_lens_to_dimension,
+)
 from surpryze.lenses import LENS_LABELS
 from surpryze.ui_tests import UiTestCase, digest_ui_tests
 
@@ -81,6 +87,7 @@ def run_gap_analysis(test_root: Path, graph_path: Path) -> dict[str, Any]:
         a = entry.get("assumption", entry)
         aid = a["id"]
         lens = entry.get("coverageLens", "function")
+        exploration_dim = map_assumption_lens_to_dimension(lens)
         best: list[tuple[float, UiTestCase, str]] = []
 
         for t in tests:
@@ -99,6 +106,8 @@ def run_gap_analysis(test_root: Path, graph_path: Path) -> dict[str, Any]:
             "statement": a.get("statement", ""),
             "coverageLens": lens,
             "coverageLensLabel": LENS_LABELS.get(lens, lens),
+            "explorationDimension": exploration_dim,
+            "explorationDimensionLabel": DIMENSION_META[exploration_dim]["label"],
             "matchStrength": strength,
             "testIds": test_ids,
             "matchedTests": [
@@ -126,6 +135,8 @@ def run_gap_analysis(test_root: Path, graph_path: Path) -> dict[str, Any]:
                     "statement": a.get("statement", ""),
                     "priority": "high" if strength == "none" else "medium",
                     "coverageLens": lens,
+                    "explorationDimension": exploration_dim,
+                    "explorationDimensionLabel": DIMENSION_META[exploration_dim]["label"],
                     "reason": note,
                     "suggestedFocus": _suggest_focus(lens),
                 }
@@ -136,6 +147,9 @@ def run_gap_analysis(test_root: Path, graph_path: Path) -> dict[str, Any]:
         matches.append(match)
 
     uncovered_ids = [g["assumptionId"] for g in gaps if g["priority"] == "high"]
+
+    exploration_coverage = build_exploration_coverage(tests)
+    exploration_dimension_gaps = dimension_gaps_for_assumptions(matches, exploration_coverage)
 
     return {
         "version": 1,
@@ -153,11 +167,13 @@ def run_gap_analysis(test_root: Path, graph_path: Path) -> dict[str, Any]:
         "matches": matches,
         "gaps": gaps,
         "uncoveredAssumptionIds": uncovered_ids,
+        "explorationCoverage": exploration_coverage,
+        "explorationDimensionGaps": exploration_dimension_gaps,
         "agentBrief": {
             "instruction": (
-                "Refine matches semantically using coverage lenses (structure, behavior, data, "
-                "interaction, platform, operations, time). Heuristic scores are a starting point only. "
-                "Gaps indicate missing evidence, not production defects."
+                "Refine matches semantically using exploration dimensions (behavior, data, state, "
+                "platform, operations, time). Use explorationCoverage.testsWithSignal per dimension. "
+                "Heuristic scores are a starting point only. Gaps are missing evidence, not defects."
             ),
             "testsDigest": [
                 {
@@ -173,16 +189,16 @@ def run_gap_analysis(test_root: Path, graph_path: Path) -> dict[str, Any]:
 
 
 def _suggest_focus(lens: str) -> str:
+    dim = map_assumption_lens_to_dimension(lens)
     hints = {
-        "structure": "Add tests that exercise navigation/routes and major UI regions.",
-        "function": "Add tests for success and error behavior implied by the feature.",
-        "data": "Add tests for input validation, boundaries, and data variation.",
-        "interaction": "Add tests for forms, controls, and user-visible feedback.",
-        "platform": "Add tests for API integration or environment-specific behavior.",
-        "operations": "Add end-to-end workflow tests across multiple steps.",
-        "time": "Add tests for timeouts, expiry, or concurrent actions.",
+        "behavior": "Add tests for success, error, and business rules (clear oracles).",
+        "state": "Add tests that navigate routes and assert key UI regions/modules.",
+        "data": "Add tests for validation, boundaries, invalid inputs, and data variation.",
+        "platform": "Add tests for API contracts, HTTP errors, or environment-specific deps.",
+        "operations": "Add multi-step workflow tests across the full user journey.",
+        "time": "Add tests for expiry, timeouts, double-submit, or concurrency.",
     }
-    return hints.get(lens, "Add targeted UI tests linked to this assumption.")
+    return hints.get(dim, "Add targeted UI tests linked to this assumption.")
 
 
 def write_gap_markdown(report: dict, path: Path) -> None:
@@ -199,9 +215,21 @@ def write_gap_markdown(report: dict, path: Path) -> None:
         f"- Moderate/strong matches: **{report['summary']['withModerateOrStrongMatch']}**",
         f"- Gaps flagged: **{report['summary']['gaps']}**",
         "",
-        "## Gaps (prioritized)",
+        "## Exploration dimensions (UI test suite)",
         "",
+        "| Dimension | Strength | Tests | Description |",
+        "|-----------|----------|-------|-------------|",
     ]
+    for d in report.get("explorationCoverage", {}).get("dimensions", []):
+        desc = d["description"].replace("|", "/")[:80]
+        lines.append(
+            f"| {d['label']} | {d['strength']} | {d['testsWithSignal']}/{d['testsTotal']} | {desc} |"
+        )
+    thin = report.get("explorationCoverage", {}).get("thinDimensions", [])
+    if thin:
+        lines.append("")
+        lines.append(f"**Thin dimensions:** {', '.join(thin)}")
+    lines.extend(["", "## Gaps (prioritized)", ""])
     for g in report.get("gaps", [])[:30]:
         lines.append(f"### `{g['assumptionId']}` ({g['priority']}) — {g.get('coverageLens', '')}")
         lines.append(g["statement"])

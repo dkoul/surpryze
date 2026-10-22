@@ -39,12 +39,13 @@ Low confidence means **uncertainty**, not “defect.” The goal is to **reduce 
 
 ## Installation
 
-Surpryze runs as a **Claude or Cursor skill** (the agent runs the Python scanner in this repo).
+Surpryze runs as an **agent skill** (the agent runs the Python scanner in this repo).
 
 1. Clone or copy this repository.
 2. Install the skill in your editor:
+   - **GitHub Copilot:** copy `skills/copilot/surpryze/` to `.github/skills/surpryze/` (project) or `~/.copilot/skills/surpryze/` (personal). See [`skills/copilot/README.md`](skills/copilot/README.md).
    - **Cursor:** copy `skills/surpryze/` to `.cursor/skills/surpryze/` in your project (or your user skills folder).
-   - **Claude Code:** add the same folder to your project’s skills location per Claude’s docs.
+   - **Claude Code:** copy `skills/surpryze/` to your project’s skills location per Claude’s docs.
 
 The skill bundle includes a small **Python toolkit**; your agent uses it automatically when you invoke Surpryze.
 

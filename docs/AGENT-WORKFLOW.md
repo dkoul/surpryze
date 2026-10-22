@@ -5,4 +5,5 @@ Users invoke the **surpryze** skill (two commands). You run the Python toolkit i
 1. **scan-react** — React repo → `assumption-graph.json`
 2. **gap-analysis** — UI test repo + graph → `gap-analysis.json` / `.md`
 
-See [`skills/surpryze/SKILL.md`](../skills/surpryze/SKILL.md).
+- Claude / Cursor: [`skills/surpryze/SKILL.md`](../skills/surpryze/SKILL.md)
+- GitHub Copilot: [`skills/copilot/surpryze/SKILL.md`](../skills/copilot/surpryze/SKILL.md)
